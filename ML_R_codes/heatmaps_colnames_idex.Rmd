@@ -1,0 +1,81 @@
+---
+title: "Heatmaps"
+output: html_notebook
+---
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# loading the mtcars data set 
+df = mtcars 
+head(df)
+```
+
+```{r}
+# converting into matrix format 
+df_matrix = data.matrix(df)
+print(class(df_matrix))
+print(class(df))
+df_matrix
+```
+
+```{r}
+heatmap(df_matrix)
+```
+
+```{r}
+heatmap(df_matrix, scale = "row")
+```
+```{r}
+heatmap(df_matrix, scale = 'column')
+```
+
+```{r}
+heatmap(df_matrix, scale = 'column',
+        Rowv = NA, Colv = NA)
+
+```
+# Scaling the dataframe 
+```{r}
+df_scaled = scale(df) 
+df_scaled = data.matrix(df_scaled)
+head(df_scaled)
+```
+
+```{r}
+heatmap(df_scaled, scale = 'column',
+        Rowv = NA, Colv = NA)
+```
+```{r}
+# getting the column names 
+print(colnames(df))
+```
+
+```{r}
+# changing the column names 
+colnames(df) = c(paste('col', sep ='_', seq(1,3)), paste('feat',sep = '_', 1:8))
+print(colnames(df))
+```
+```{r}
+# changing specific column names ]
+names(df)[names(df) == 'col_1'] = 'target'
+names(df)
+```
+
+```{r}
+
+# Creating a function for getting indexes of a value in vector 
+l = c(1,2,5,1,3,2)
+indexes = seq(1:length(l)) 
+index = function(vector,element){
+    ind_list = c() 
+    for(i in indexes){
+       if (l[i] == element){
+           ind_list = append(ind_list, i)
+       }
+    }
+    return (ind_list)
+}
+
+index(l,1)
+```
+
+
+

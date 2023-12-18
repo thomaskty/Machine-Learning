@@ -1,0 +1,214 @@
+---
+title: "Residual Analysis"
+output: html_notebook
+---
+
+# Creating the model using marketing dataset 
+```{r}
+# creating the multiple regression model(model_mlr)
+library(datarium)
+df = marketing
+# model specification 
+model_mlr = lm(sales ~. , data = df)
+# summary of the model 
+summary(model_mlr)
+```
+
+# Residual plots 
+
+```{r fig.height=10, fig.width=10}
+par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
+plot(model_mlr)
+par(mfrow=c(1,1)) # Change back to 1 x 1
+```
+# Bp test for checking homoskedasticity assumption 
+null hypothesis is homoskedastic 
+if bp test p value is less than the 0.05 we reject the null hypothesis and concluded that the model suffers with the problem of heteroskedasticity. 
+```{r warning=FALSE}
+library(lmtest)
+bptest(model_mlr)
+```
+Here p value is higher than 0.05 so we accept the null hypothesis that the homoskedasticity assumption is verified. 
+
+
+# Normality checking ( shapiro wilk test )
+```{r}
+shapiro.test(model[['residuals']])
+```
+p value is large so we can not reject the normality. 
+if we have normality violations then we can transform the response variable 
+
+
+# LOG transformation of response feature 
+```{r}
+model_log = lm(log(sales)~. , data = marketing)
+plot(model)
+```
+
+# Checking multicollinearity 
+```{r}
+library(car)
+vif(model_mlr)
+```
+if the value is greater than 5 then that feature has multicorrelation, so we have to remove it
+
+
+
+# Analysis of Residuals vs Fitted 
+
+  This plot shows if residuals have non-linear patterns. There could be a non-linear relationship between predictor variables and an outcome variable and the pattern could show up in this plot if the model doesn't capture the non-linear relationship. If you find equally spread residuals around a horizontal line without a specific pattern, that is a good indication that  you don't have non-linear relationships. 
+
+<img src="/home/thomaskutty/Pictures/residuals_vs_fitted.png" alt="">
+
+  In the first figure we don't see any pattern, but in the second picture, we see a parabola , where the non-linear relationship was not explained by the model and was left out in the residuals. 
+
+
+# Analysis of Normal Q-Q plot 
+  This plot shows if residuals are normally distributed. Do residuals follow a straight line well or do they deviate severely?. It's good if residuals  are lined well on the straight dashed line. if the qq plot looks curved then the residuals are skewed in one direction. 
+if you have heavy tails then also we have a non -normal distribution(flatter tails). we need normality assumption for model hypothesis tests all of this test assume that residuals are normally distributed. 
+
+<img src="/home/thomaskutty/Pictures/normal_qq.png" alt="">
+
+  In the above figures we can observe that one is skewed very much, and this is definitely a concern in residual analysis. We have one assumption regarding the residual terms that is "residuals must be independently and identically distributed with constant variance and zero mean".
+
+# Analysis of scale-location plot 
+  It’s also called Spread-Location plot. This plot shows if residuals are spread equally along the ranges of predictors. This is how you can check the assumption of equal variance (homoscedasticity). It’s good if you see a horizontal line with equally (randomly) spread points.
+<img src="/home/thomaskutty/Pictures/scale_location.png" alt="">
+
+  In Case 1, the residuals appear randomly spread. Whereas, in Case 2, the residuals begin to spread wider along the x-axis as it passes around 5. Because the residuals spread wider and wider, the red smooth line is not horizontal and shows a steep angle in Case 2.
+
+# Residuals vs Leverage
+
+  This plot helps us to find influential cases (i.e., subjects) if any. Not all outliers are influential in linear regression analysis (whatever outliers mean). Even though data have extreme values, they might not be influential to determine a regression line. That means, the results wouldn’t be much different if we either include or exclude them from analysis. They follow the trend in the majority of cases and they don’t really matter; they are not influential. On the other hand, some cases could be very influential even if they look to be within a reasonable range of the values. They could be extreme cases against a regression line and can alter the results if we exclude them from analysis. Another way to put it is that they don’t get along with the trend in the majority of the cases.
+
+  Unlike the other plots, this time patterns are not relevant. We watch out for outlying values at the upper right corner or at the lower right corner. Those spots are the places where cases can be influential against a regression line. Look for cases outside of a dashed line, Cook’s distance. When cases are outside of the Cook’s distance (meaning they have high Cook’s distance scores), the cases are influential to the regression results. The regression results will be altered if we exclude those cases.
+<img src="/home/thomaskutty/Pictures/leverge.png" alt="">
+
+  Case 1 is the typical look when there is no influential case, or cases. You can barely see Cook’s distance lines (a red dashed line) because all cases are well inside of the Cook’s distance lines. In Case 2, a case is far beyond the Cook’s distance lines (the other residuals appear clustered on the left because the second plot is scaled to show larger area than the first plot). The plot identified the influential observation as #49. If I exclude the 49th case from the analysis, the slope coefficient changes from 2.14 to 2.68 and R2 from .757 to .851. Pretty big impact!
+
+  The four plots show potential problematic cases with the row numbers of the data in the dataset. If some cases are identified across all four plots, you might want to take a close look at them individually. Is there anything special for the subject? Or could it be simply errors in data entry?
+
+
+
+# Conclusion - Residual Analysis 
+
+  So, what does having patterns in residuals mean to your research? It’s not just a go-or-stop sign. It tells you about your model and data. Your current model might not be the best way to understand your data if there’s so much good stuff left in the data.
+
+  In that case, you may want to go back to your theory and hypotheses. Is it really a linear relationship between the predictors and the outcome? You may want to include a quadratic term, for example. A log transformation may better represent the phenomena that you’d like to model. Or, is there any important variable that you left out from your model? Other variables you didn’t include (e.g., age or gender) may play an important role in your model and data. Or, maybe, your data were systematically biased when collecting data. You may want to redesign data collection methods.
+Checking residuals is a way to discover new insights in your model and data!
+
+
+# Residual and leverage 
+
+Leverage is the distance from the mass  center of the data 
+cook's distance is an overall measure of influence of an observation. 
+Points with high leverage may be influential: that is, deleting them would change the model a lot. For this we can look at Cook’s distance, which measures the effect of deleting a point on the combined parameter vector. Cook’s distance is the dotted red line here, and points outside the dotted line have high influence. In this case there are no points outside the dotted line. 
+
+
+# Multicollinearity 
+Occurs when two or more independent variables have high linear correlation among them. So, model cannot correctly estimate effect of each predictor on the dependent variable. Technically it undermines the statistical significance of an independent variable ( since it increases the standard erros of the coefficients) 
+
+Variance inflatio factor (VIF) assesses how much the variance of an estimated regression coefficient increases if predictors in a model are correlated. 
+
+
+
+
+
+
+# OLS Assumptions 
+
+- No multicollinearity ( variance inflation factor(vif)) 
+
+
+- No Auto(serial) correlation  ( error terms should not be correlated) - durbbin watson test and lagrange multiplier test. 
+
+
+- No Heteroskedasticity ( error terms should have constant variance given the predictors)
+
+- Normality of error terms with mean 0. ( qq plot)
+    why ? 1. presence of outliers ( )
+          2. different distribution altogether (skewed distribution)
+    
+
+- Normality of  y variable (box -cox transformation) 
+- 
+
+#### class notes 
+
+
+
+# Normality : 
+all the errors are normally distributed. we need this to do any tests of sigificance on the regression coefficients . 
+qq - plot 
+  graphcal tool that allows us to see at a glance : 
+  if our assumptions of normality is plausible 
+  if not how the assumtion is violated and 
+  which data points contribute to the violation.
+  
+  it is a scatter plot created by plotting two sets of quantiles against one another. one drawn form a theoretical normal distribution and the other drawn form the residuals of the model.  if both sets of quantiles come from the same distribution, the points will form a roughly straight line. 
+  quantiles : points in your data below which a certain proportion of your data falls. 
+
+#
+plot(qnorm(seq(0.001,0.99,0.01)))
+
+
+
+
+
+# leverage and standardized residuals 
+leverage : a measure of hoe far away data points are from those of the other observations. 
+it determines the strength of the contribution of a sample value (yi) on the predicted value for ith observation 
+standardized residuals : the st.residuals is a measure of the strength of the difference between observed aand expected value. 
+
+
+# why is residual anlysis for outliers important ? 
+if an outlier is significant a signle observation will produce substantial changes in the regression equation estimates. .
+simple linear regression - - plot the data to check 
+multiple linear regressioin --- analyze the residuals 
+
+
+Should we drop the outlier observation? 
+possible solutions lie in re-specification of the relationship(model) to include all effects 
+  - lags 
+  - Omitted explanatory varianble 
+
+
+why outlier --- erros in data entry 
+any explanation ? anything special for the observation? 
+
+
+source of non-normal distribution : 
+  1. outlier 
+  2. 
+
+
+
+
+
+
+
+OLS ASSUMPTIONS 
+
+1. model is linear in paramter
+
+2. error term has population mean of zero 
+
+3. no multicollinearity between independent variables 
+
+4. Endogenity: 
+  All the independent variables are uncorrelated with the error term. When this type of correlation exists, there is endogeneity. Violation of this assumptions can occur because there is sumultaneity between the independent and dependent variables, omitted variable bias, or measurement error in the independent variables. 
+Violating this assumption biases the coefficient estimate. To understand why this bias occurs, keep in mind that the error term always explains some of the variability in the dependent variable. However, when an independent variable correlates with the error term, OLS incorrectly attributes some of the variance that the error term actually explains to the independent variable instead
+
+5. No autocorrelation/ seriel correlation: 
+one observation of the error term should not predict the next observation. For instance, if the error for one observation is positive and that systematically increases the probability that the following error is positive, that is positive correlation. If the subsequent error is more likely to have the opposite sign, that is negative correlation. This problem is known  both as serial correlation and autocorrelation. Serial correlation is most likely to occur in time series models. 
+
+
+6. The error term has a constant variance (no heteroskedasticity) 
+
+The variance of the errors should be consistent for all observations. In other words, the variance does not change for each observation or for a range of observations. This preferred condition is known as homoscedasticity (same scatter). If the variance changes, we refer to that as heteroscedasticity (different scatter).
+
+
+7. No Multicollinearity :
+
+8. The error term is normally distributed 
+OLS does not require that the error term follows a normal distribution to produce unbiased estimates with the minimum variance. However, satisfying this assumption allows you to perform statistical hypothesis testing and generate reliable confidence intervals and prediction intervals.

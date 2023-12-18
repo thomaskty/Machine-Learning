@@ -1,0 +1,148 @@
+---
+title: "Sentimental analysis-1    ----- Thomaskutty_20122011"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+# Importing the neessary libraries 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidytext)
+library(glue)
+library(stringr)
+```
+
+# Reading the folder containing all the text files 
+```{r}
+files = list.files('/cloud/project/texts_fold/')
+print(files)
+```
+### Getting the filename 
+```{r}
+filename = glue('/cloud/project/texts_fold/', files[1]) 
+head(filename)
+```
+### Removing the trailing spaces 
+```{r}
+filename = trimws(filename)
+head(filename)
+```
+
+### Getting the text in the file 
+```{r}
+filetext  = glue(read_file(filename))
+```
+
+### Get rid of dollar symbol 
+```{r}
+filetext = gsub("\\$", "", filetext)
+```
+
+# Tokenization 
+Tokenization is a way of seperating a piece of text into smaller unites called tokens. Here, tokens can be either words, charackers, or subwords. 
+```{r paged.print=FALSE}
+tokens = tibble(text = filetext) %>%
+  unnest_tokens(word, text) 
+print(head(tokens))
+```
+### Getting the sentiment of the text 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+sent = tokens %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+se = as.numeric(sent[1,'sentiment'])
+se
+```
+
+
+
+## Creating a function to extract the sentiment 
+```{r}
+ GetSentiment = function(file){
+   filename = glue('/cloud/project/texts_fold/', file)
+   filename = trimws(filename)
+   
+
+   filetext = glue(read_file(filename)) 
+   filetext = gsub("\\$", "", filetext)
+   
+   
+   # tokennize 
+   tokens = tibble(text = filetext) %>%
+     unnest_tokens(word, text)
+   
+  sentiment = tokens %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+  
+  
+  fin_sent = as.numeric(sentiment['sentiment'])
+  
+
+   return (fin_sent) 
+ }
+```
+
+
+### Testing the function for one text file 
+```{r message=FALSE, warning=FALSE}
+GetSentiment(files[1])
+```
+##  Applying the function to the entire folder and creating result in a dataframe
+```{r message=FALSE, warning=FALSE}
+sentiments_frame = data.frame()
+for (i in 1:18){
+  sentiments_frame = rbind(sentiments_frame,c(files[i], GetSentiment(files[i])))
+}
+print(sentiments_frame)
+```
+## Giving column names to the existing dataframe 
+```{r paged.print=FALSE}
+colnames(sentiments_frame) = c('filename', 'sentiment') 
+sentiments_frame
+```
+
+## Adding a new feature of sentiment labels( positive and negative)
+```{r warning=FALSE, paged.print=FALSE}
+to_sentiment = function(x){
+  if(x < 0){
+    'Negative'
+  }else{
+    'Positive'
+  }
+}
+
+sentiments_frame$sentmt_text = sapply(sentiments_frame$sentiment, to_sentiment)
+sentiments_frame
+```
+# Plotting the bar diagram of sentiments 
+```{r}
+library(ggplot2)
+ggplot(data = sentiments_frame, aes(sentmt_text)) + geom_bar(fill = 'lightgreen') + theme_minimal()
+```
+
+# Getting both positives and negatives sentimental files in a dataframe for plotting 
+```{r}
+positives = sentiments_frame[sentiments_frame$sentmt_text == 'Positive', ] 
+negatives = sentiments_frame[sentiments_frame$sentmt_text == 'Negative', ] 
+```
+
+# Plots of sentiments 
+```{r}
+ggplot()+theme_minimal()+
+  geom_point(data = positives, aes(x = filename, y  = sentiment), color = 'red', size = 5)+
+  geom_point(data = negatives , aes(x = filename, y = sentiment) , color  = 'blue', size = 4)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+# Printing the value counts of sentiments 
+```{r}
+table(sentiments_frame$sentmt_text)
+```
+# Interpretation
+
+##### We have 18 text files in total for the analysis. We predicted the sentiments of each text document and gave the sentiment labels (positive and negative) to each text document. From the box plot and the table we found that among the 18 files 10 got positive sentiment and rest of them are in negative sentiment. 
+
+#### ===============================================================

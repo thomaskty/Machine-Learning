@@ -1,0 +1,193 @@
+---
+title: "R Lab Test - Thomaskutty_20122011"
+output: html_notebook
+---
+# Importing Libraries 
+```{r message=FALSE, warning=FALSE}
+# importing libraries 
+library(Amelia)   # missing value plotting 
+library(ggplot2)  # visualization 
+library(caTools)  # for train test split 
+library(rpart.plot) # decision tree plotting 
+library(rpart)  # decision tree models 
+library(caret) # for confusion matrix 
+library(corrplot)  # for plotting the correlation 
+library(pROC) # to build the roc curve
+library(e1071) # dependency for printing confusion matrix 
+```
+
+# Loading the dataset 
+```{r paged.print=FALSE}
+df = read.csv('/home/thomaskutty/Gitrepo/Machine-Learning-with-R/data_fold/exam_data.csv')
+head(df)
+```
+
+# Getting the summary of dataset 
+```{r}
+# getting the summary (summary(df))
+summary(df)
+```
+
+# Getting the summary of the data
+```{r}
+# structure of the data set (using str(df))
+str(df)
+```
+# Checking the missing values
+```{r}
+# missing values 
+library(Amelia)
+missmap(df,main = 'dataframe -missing values ', col = c("yellow", 'black'), legend = FALSE)
+```
+```{r}
+# Finding the total number of missing values in each of the columns 
+colSums(is.na(df))
+```
+# Attaching the dataframe
+```{r message=FALSE, warning=FALSE}
+attach(df)
+```
+
+
+# Splitting the data into train and test 
+```{r}
+# splitting the data 
+set.seed(100)
+sample = sample.split(df$V10, SplitRatio = 0.7)
+df.train = subset(df, sample == TRUE)
+df.test = subset(df, sample == FALSE)
+```
+
+# Printing the dimensions of the train and test
+```{r}
+dim(df.train)
+```
+```{r}
+dim(df.test)
+```
+
+# Visualization 
+```{r message=FALSE, warning=FALSE}
+ggplot(data = df.train, aes(df.train$V10)) + geom_bar(aes ())+ theme_minimal()
+```
+we can see that data set is not balanced. 
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = df.train, aes(df.train$V1)) + geom_bar(aes(fill = V10))+ theme_minimal()
+```
+Interpretation : we can see that each of the target has both negative and positive targets. Also above 50 % of each of the feature values got positive targets. 
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = df.train, aes(df.train$V10)) + geom_bar(aes(fill = V1)) + theme_minimal() 
+```
+We see that the target feature is distributed balanced with the feature V1. 
+
+
+# Analysing the negative target data points 
+```{r paged.print=FALSE}
+negative_targets = subset(df.train, df.train$V10 == "negative")
+head(negative_targets)
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = negative_targets, aes(negative_targets$V1))+ geom_bar()+ theme_minimal()
+```
+Interpretation : We see that among negative targets data most of them are v1 - 0 ::
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = negative_targets, aes(negative_targets$V2))+ geom_bar() + theme_minimal()
+```
+
+But  feature v2 - x got higher negative targets. ( high count of loosing for x )
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = negative_targets, aes(negative_targets$V3))+ geom_bar() + theme_minimal()
+```
+feature v3 - 0 got higher negative targets.
+
+```{r}
+table(V2)
+```
+So, the the count of three labels in V2 feature is almost normal. 
+# Model Building 
+```{r}
+# model building 
+library(rpart)
+tree = rpart(V10 ~. , method = 'class', data = df.train)
+```
+
+
+# Predictions from test data 
+```{r}
+tree.preds  = predict(tree, df.test)
+head(tree.preds)
+```
+Note: Now we create  two probability columns where the first column shows the probability of the V10 - negative, and the second column shows the probability of the v10 - positive.
+
+```{r paged.print=FALSE}
+tree.preds = as.data.frame(tree.preds)
+to_result = function(x){
+  if(x <= 0.5){
+    'negative'
+  }else{
+    'positive'
+  }
+}
+tree.preds$final_class = sapply(tree.preds$positive, to_result)
+head(tree.preds)
+```
+classification rule : if the probability of tree.preds$positive is greater than 0.5 then the result should be positve
+otherwise negative. 
+
+Lets print the head of the test data 
+```{r paged.print=FALSE}
+head(df.test)
+```
+
+```{r}
+
+cf = table(tree.preds$final_class, df.test$V10)
+confusionMatrix(cf)
+```
+from the confusion matrix we see that 80 true negatives, and 177 true positives . Sensitivity is 0.80 and specificity is 94. Sensitivity is the true positives rate and specificity is the true negative rate. 
+
+
+NOte: confidence interval is a range of values er are fairly sure our true value lies in. NO information rate is just the largest class percentage in the data. 
+cohen kappa is a type of classification evaluation metric.
+accuracy is the percentage of correctly classified instances out of all instances. It is more useful on a binary classification than multiclass classification problems because it can be less clear exactly hoe the accuracy breaks down across the classes. 
+sensitivity if the ability of a test to correctly identify those that are not high and specificity is the true negative rate.
+
+```{r fig.height=10, fig.width=10}
+rpart.plot(tree,box.col = c('lightblue','yellow'))
+```
+if v5 != 0, v7 != 0 and v3 ! = 0 then the the model will predict the output as positive with probability 23 %. Each leaf represents decision criteria. 
+
+
+```{r}
+prp(tree)
+```
+Interpretation: We can that if V5 != 0 and V7 != 0 and V3 != 0 then the tree will predict the output as positive. ( Example of one leaf decision rule)
+
+```{r message=FALSE, warning=FALSE}
+library(pROC)
+change = function(x){
+  if(x == 'positive'){
+    1
+  }else{
+    0
+  }
+}
+
+
+test_probs = sapply(tree.preds$final_class, change)
+df.test$V10 = sapply(df.test$V10, change)
+test_roc = roc(df.test$V10 ~test_probs, plot = TRUE, print.auc = TRUE)
+```
+
+# Interpretation: 
+
+we can see that the auc is 0.871. where 1 represents the perfect classifier and 0.5 represents worthless classifier. 
+So, there is a 87.1 % chance that the model will be able to distinguish between positive and negative class. ie. whether the v10 is positive or negative.  ============================================================================================================================================
+

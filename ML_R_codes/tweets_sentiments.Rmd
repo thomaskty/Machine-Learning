@@ -1,0 +1,122 @@
+---
+title: "Tweets Sentimental Analysis        -- Thomaskutty_20122011"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+# Importing the neessary libraries 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidytext)
+library(glue)
+library(stringr)
+
+library(SnowballC)
+library(tm)
+library(twitteR)
+library(syuzhet)
+```
+
+
+# Reading the file and assigning  proper column names fo the dataframe. 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+df = read.csv('/cloud/project/tweets.csv', nrows = 50000, header = TRUE, sep = ',')
+attach(df)
+df = subset(df, select = c(-X0))
+colnames(df) = c('id', 'date', 'flag', 'user','tweet')
+attach(df)
+head(df)
+
+```
+
+# Printing the first 10 tweets
+```{r}
+for(i in seq(1:10)){
+  print(df$tweet[i])
+}
+```
+# Printing the final dataframe of tweets 
+```{r paged.print=FALSE}
+head(df)
+```
+
+# Creating a function to clean the tweets
+```{r}
+library(tidyverse)  
+clean_tweets <- function(x) {
+            x %>%
+                    str_remove_all(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)") %>%
+                    str_replace_all("&amp;", "and") %>%
+                    str_remove_all("[[:punct:]]") %>%
+                    str_remove_all("^RT:? ") %>%
+                    str_remove_all("@[[:alnum:]]+") %>%
+                    str_remove_all("#[[:alnum:]]+") %>%
+                    str_replace_all("\\\n", " ") %>%
+                    str_to_lower() %>%
+                    str_trim("both")
+  return (x)
+}
+# applying the cleaning function to tweet column 
+df$tweet = sapply(df$tweet, clean_tweets)
+```
+
+# Getting the sentiments of each tweets
+```{r}
+get_sents = function(tweet){
+  sent.value = get_sentiment(tweet)
+  return (sent.value) 
+}
+
+# applying the get_sents function to tweet column 
+df$sentiment_score = sapply(df$tweet, get_sents) 
+```
+
+
+# printing the final dataframe 
+```{r warning=FALSE, paged.print=FALSE}
+head(df)
+```
+# Getting both negative and positive tweets in a seperate dataframe 
+```{r}
+positive.tweets = df[df$sentiment_score > 0,]
+negative.tweets = df[df$sentiment_score < 0,]
+```
+
+# Assigning labels to each tweets 
+```{r paged.print=FALSE}
+to_sent_labels = function(x){
+  if (x >0){
+    'positive'
+  }else if (x <0){
+    'negative'
+  }else{
+    'neutral'
+  }
+}
+
+df$sent_labels = sapply(df$sentiment_score , to_sent_labels)
+head(df)
+```
+
+# Getting the count of sentiment labels 
+
+```{r}
+print(table(df$sent_labels))
+library(ggplot2)
+ggplot(data = df, aes(sent_labels)) + geom_bar(fill = 'lightgreen') + theme_minimal()
+```
+# Interpretation 
+
+We can see that the counts of both positive and negative tweets are almost same. So tweets are equally distributed ( both positive and negative).
+
+
+
+
+
+
+
+
+
+
+

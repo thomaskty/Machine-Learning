@@ -1,0 +1,156 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r paged.print=FALSE}
+df = read.csv('/home/thomaskutty/Gitrepo/Machine-Learning-with-R/data_fold/accident.csv')
+head(df)
+```
+
+```{r message=FALSE, warning=FALSE}
+# loading the packages 
+library(ggplot2)
+library(caTools)
+library(dplyr)
+library(caret)
+library(e1071)
+library(rpart)
+dim(df)
+```
+
+```{r}
+sapply(df,function(x) sum(is.na(x)))
+```
+Note: We can see that injSeverity column has 76 missing values 
+```{r}
+# removing the 76 null values 
+library(dplyr)
+df_ <-df %>% na.omit()		
+dim(df_)
+```
+```{r}
+# splitting the data into train and test using catools 
+set.seed(12)
+sample = sample.split(df_$id,SplitRatio = 0.8)
+df.train = subset(df_, sample == TRUE)
+df.test = subset(df_, sample == FALSE)
+print(dim(df.train))
+print(dim(df.test))
+```
+
+
+```{r warning=FALSE, paged.print=FALSE}
+head(df.train)
+```
+```{r}
+# getting the structure of data 
+str(df.train)
+```
+
+```{r}
+# adding some visualization 
+# air bag use and alive feature 
+ggplot(data = df.train, aes(dead)) + geom_bar(aes(fill = airbag))+ theme_minimal()
+```
+From the graph we cant find any significant difference with respect to use of air bag. 
+
+```{r}
+# dead and seatbelt features 
+ggplot(data = df.train, aes(dead)) + geom_bar(aes(fill = seatbelt))+ theme_minimal()
+
+```
+We can see a bit high alive rate for those who wear seat belt. 
+
+```{r}
+# dead and sex feature 
+ggplot(data = df.train, aes(dead)) + geom_bar(aes(fill = sex))+ theme_minimal()
+
+```
+The partitions are almost equal. Ther is no significant difference. 
+
+
+
+
+
+```{r}
+# anaysing setbelt feature among men and women 
+ggplot(data = df.train, aes(seatbelt)) + geom_bar(aes(fill = sex))+ theme_minimal()
+
+```
+Almost equl inference. 
+
+```{r}
+# checking whether the data set is balanced or not 
+ggplot(data = df.train , aes(dead)) + geom_bar()+ theme_minimal()
+```
+The dataset is unbalanced so just accuracy is not a proper method. We need to consider other measures as well. 
+
+```{r}
+# checking driver feature and dead 
+ggplot(data = df.train, aes(occRole)) + geom_bar(aes(fill = dead)) + theme_minimal()
+```
+since the datset is unbalanced we cannot infer much information from the above graph. 
+```{r}
+df.train = subset(df.train, select = c(-id, -caseid))
+df.test = subset(df.test, select = c(-id, -caseid))
+```
+
+
+```{r}
+df.test
+```
+
+
+
+
+
+```{r}
+tree = rpart(dead ~. , method = 'class', data = df.train)
+tree.preds  = predict(tree, df.test)
+head(tree.preds)
+```
+
+
+```{r paged.print=FALSE}
+tree.preds = as.data.frame(tree.preds)
+to_result = function(x){
+  if(x >= 0.5){
+    'alive'
+  }else{
+    'dead'
+  }
+}
+tree.preds$final_class = sapply(tree.preds$alive, to_result)
+head(tree.preds)
+```
+classification rule : if the probability of tree.preds$high is greater than 0.5 then the result should be high income 
+otherwise low.
+
+
+```{r}
+cf = table(tree.preds$final_class, df.test$dead)
+confusionMatrix(cf)
+```
+```{r}
+library(rpart.plot)
+rpart.plot(tree,box.col = c('red','green'))
+```
+NOte : if injseverity is less than 4 : then the class is alive with 95 chance. 
+
+```{r}
+prp(tree)
+```
+```{r message=FALSE, warning=FALSE}
+library(pROC)
+change = function(x){
+  if(x == 'alive'){
+    1
+  }else{
+    0
+  }
+}
+
+test_probs = sapply(tree.preds$final_class, change)
+test_roc = roc(df.test$dead ~test_probs, plot = TRUE, print.auc = TRUE)
+```
+Now tha auc is pretty high ( 96.8 %) 

@@ -1,0 +1,111 @@
+---
+title: "Naive Bayes classifier"
+output: html_notebook
+---
+# Naive Bayes Classifier 
+Naive bayes assume independence of features. It can also be used with continuous variables. If all the input features are categorical naive bayes is recommended.In the case of numerical features it makes another strong assumption with is that the numerical variable is normally distributed. 
+
+# Loading major libraries 
+```{r message=FALSE, warning=FALSE}
+library(caret) # confusion matrix and splitting 
+library(caTools)
+library(dplyr) # data preprocessing 
+library(tidyverse) # data preprocessing 
+library(psych)  # data description 
+
+```
+
+# Loading the data set 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# loading the dataframe titanic
+titanic = read.csv('/home/thomaskutty/Downloads/titanic.csv')
+head(titanic)
+```
+# structure of data 
+```{r}
+str(titanic)
+```
+# Checking missig values 
+```{r}  
+colSums(is.na(titanic))
+```
+
+```{r paged.print=FALSE}
+# rermoving body feature from titanic dataframe 
+titanic$body = NULL
+
+# using tidyr library 
+# titanic =  titanic  %>% na.omit()
+
+# using na.omit(df)
+titanic = na.omit(titanic)
+
+titanic  = titanic %>% mutate_if(is.integer, as.factor) 
+titanic = titanic %>% select(-name, -boat, -home.dest, -ticket,-cabin)
+titanic$age = as.factor(as.integer(titanic$age))
+titanic$sex = as.factor(titanic$sex)
+titanic$embarked = as.factor(titanic$embarked)
+str(titanic)
+```
+# Getting data description 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+describe(titanic)
+```
+
+# Missing value analysis using miss map - confirmation
+```{r message=FALSE, warning=FALSE}
+library(Amelia)
+missmap(titanic)
+```
+
+
+# Splitting the data into training and testing 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+set.seed(32) 
+
+# caret package createdatapartition function 
+indx = createDataPartition(y = titanic$survived, p = 0.70, list = FALSE) 
+titan_train = titanic[indx,] 
+titan_test = titanic[-indx,] 
+```
+
+# Getting the proportion of the target variable in train and test
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# getting the proportions of the target in trainin, testing and the original data. 
+print(prop.table(table(titanic$survived)))
+print(prop.table(table(titan_train$survived)))
+print(prop.table(table(titan_test$survived)))
+
+```
+
+# Selecting features and target 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+trainX = titan_train %>%  select(-survived)
+trainy = titan_train$survived
+```
+
+# Naive bayes model using klaR library 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(klaR)
+library(e1071)
+modelnB = train(trainX,trainy, 'nb', trControll = trainControl(method = 'cv', number = 10))
+modelnB
+```
+
+# Testing and prediction 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+prediction = predict(modelnB, newdata = titan_test )
+```
+
+# printing the accuracy metrices 
+```{r}
+confusionMatrix(prediction, titan_test$survived)
+```
+
+# Printing variable importance  
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+var_importance = varImp(modelnB)
+plot(var_importance)
+```
+# ===========================================
+

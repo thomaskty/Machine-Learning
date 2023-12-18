@@ -1,0 +1,473 @@
+---
+title: "r_lab_CIA- Thomaskutty_20122011"
+output: html_notebook
+---
+### ==========================================
+# Solution path for this work
+### ===========================================
+
+####   1. Importing the dataset 
+####   2. loading all the necessary libraries 
+####   3. loading the dataset 
+####   4. creating a function to print customised classification report 
+####   5. splitting the dataframe into train and test 
+####   6. checking null values / converting the labels / converting the datatype
+####   7. creating random forest classifier 
+
+####            * cross validation 
+####   8. creating decision tree classifier 
+
+####            * cross validatation 
+####   9. Logistic Regression 
+####          * creating logistic regression model 
+
+####          * cross validation 
+
+
+### ==========================================
+# Importing libraries 
+### ===========================================
+
+```{r message=FALSE, warning=FALSE}
+library(Amelia)   # missing value plotting 
+library(ggplot2)  # visualization 
+library(caTools)  # for train test split 
+library(rpart.plot) # decision tree plotting 
+library(rpart)  # decision tree models 
+library(caret) # for confusion matrix 
+library(corrplot)  # for plotting the correlation 
+library(pROC) # to build the roc curve
+library(e1071) # dependency for printing confusion matrix
+library(dplyr) # for data analysis 
+library(ipred) # dependecy for nnet package 
+library(nnet) # for multinomial logistic regression
+library(randomForest) # random forest classifier 
+```
+
+
+# Creating a classification report function using confusion matrix. 
+Here we will make a function to print all the classification accuracy measures like precision, recall, f1 score, kappa value
+```{r}
+classification_report = function(conf.matrix){
+    n = sum(conf.matrix) # number of instances
+    nc = nrow(conf.matrix) # number of classes
+    diag = diag(conf.matrix) # number of correctly classified instances per class 
+    rowsums = apply(conf.matrix, 1, sum) # number of instances per class
+    colsums = apply(conf.matrix, 2, sum) # number of predictions per class
+    p = rowsums / n # distribution of instances over the actual classes
+    q = colsums / n # distribution of instances over the predicted classes
+    accuracy = sum(diag) / n 
+    precision = diag / colsums 
+    recall = diag / rowsums 
+    f1 = 2 * precision * recall / (precision + recall) 
+    macroPrecision = mean(precision)
+    macroRecall = mean(recall)
+    macroF1 = mean(f1)
+    expAccuracy = sum(p*q)
+    kappa = (accuracy - expAccuracy) / (1 - expAccuracy)
+    cat('model classification report')    
+    cat('\n=========================================')
+    cat("\n")
+    
+    cat(paste(kappa, 'is the kappa value: ')) 
+    cat('\n')
+    print (data.frame(macroPrecision, macroRecall, macroF1))
+        cat('\n')
+
+    print(data.frame(precision, recall, f1)) 
+        cat('\n')
+
+    cat(paste(accuracy, 'is the accuracy'))}
+```
+
+
+# Importing the dataset 
+```{r paged.print=FALSE}
+# loading the car evaluation dataset from web (already published in web)
+
+df = read.csv('/home/thomaskutty/Downloads/car_evaluation.csv')
+head(df)
+```
+
+
+# Renaming the columns 
+We covert the column names to more meaningful names 
+```{r paged.print=FALSE}
+names(df) <- c("BuyingPrice", "Maintenance", "NumDoors", "NumPersons", "BootSpace", "Safety", "Condition") 
+```
+
+# Attaching the dataframe and splitting into train and test
+#### Note: We have to train the model using the train data. Since we dont have seperate test and train data, we have to first split the entire data into train and test with  80:20 ratio. Our trained model should not see the test data during the training or preprocessing part, thats why we do this split just after loading the dataframe. We use caTools package for the splitting. 
+
+```{r message=FALSE, warning=FALSE}
+# we attach the dataframe for easy access of the column names in this notebook
+attach(df)
+sample = sample.split(df$Condition,SplitRatio = 0.8)
+df.train = subset(df, sample == TRUE)
+df.test = subset(df, sample == FALSE)
+```
+
+# Replacing missing values : Random value replacement 
+# Handling the missing values 
+```{r}
+colSums(is.na(df.train))
+```
+we can see in certain features both categorical and numerical labels are present. Here we create a function to convert all the numerical orders to categorical orders. 
+# Checking the dimensions and nulls / creating function to change the factor names and cleaning : 
+```{r}
+# printing the dimension of training and testing data 
+print(dim(df.train))
+print(dim(df.test))
+```
+
+```{r}
+# Lets see the unique value counts in Bootspace feature 
+table(df.train$BootSpace)
+```
+# Transforming the feature into factors 
+Since we are using random forest library, we have to transform every features to factor data type. we can do this using mutate function with pipes.
+```{r}
+# converting to factor 
+df.train = df.train %>% mutate_if(is.character,as.factor) 
+df.test = df.test %>% mutate_if(is.character,as.factor) 
+```
+
+
+
+# printing the preprocessed train and test data 
+Now we have fully prepared the train and test data set for the modelling. 
+```{r paged.print=FALSE}
+head(df.train)
+```
+```{r paged.print=FALSE}
+head(df.test)
+```
+
+### ==========================================
+# model  :  Visualizations 
+### ===========================================
+
+```{r message=FALSE, warning=FALSE}
+#checking whether the data set is balanced or not 
+ggplot(data = df.train , aes(df.train$Condition)) + geom_bar()+ theme_minimal()
+```
+we see that there are many values for unacc. In this case we have to find precision for each class so that we can verify the power of model. we will do this by priniting the classification accuracies. 
+
+```{r}
+# lets understand how buying price affects the condition 
+ggplot(data = df.train, aes(BuyingPrice)) + geom_bar(aes(fill = Condition))+ theme_minimal() 
+```
+as expected we can see that there are low counts for extreme cases( low , vhigh) prices 
+
+```{r}
+ggplot(data = df.train, aes(Maintenance)) + geom_bar(aes(fill = Safety), position = position_dodge()) + theme_minimal() 
+```
+obserrvation : We see that the distribution of saftey is same for all the price ranges
+Among high maintenance cost cars there are equal number of high and low safety instances. 
+
+```{r}
+ggplot(data = df.train, aes(NumDoors)) + geom_bar(aes(fill = Safety))+ theme_minimal() 
+```
+Observation : The three doors and four doors cars are more safer than the other two. 
+```{r}
+ggplot(data = df.train, aes(Safety)) + geom_bar(aes(fill = Condition))+ theme_minimal() 
+```
+observation : its pretty clear that unacc condition cars are very low in safe.The very good condition cars belongs to high safety
+
+```{r message=FALSE, warning=FALSE}
+# lets analyse how bootspace affects safety
+ggplot(data = df.train , aes(df.train$BootSpace))+ geom_bar(aes(fill = Safety))+ theme_minimal()
+```
+
+
+### ==========================================
+# model  :  Random Forest and classification accuracies 
+### ===========================================
+
+
+```{r paged.print=FALSE}
+# building the model 
+model2 = randomForest(Condition ~. ,data = df.train, ntree = 500, mtry = 6, importance = TRUE)
+
+# predictions on train data 
+pred.train = predict(model2, df.train, type = 'class')
+print('train data confusion matrix')
+
+table(pred.train, df.train$Condition)
+
+# predictions on test data 
+pred.test = predict(model2, df.test, type = 'class')
+
+rf_cm = table(pred.test, df.test$Condition)
+
+print('test data confusion matrix')
+
+print(rf_cm)
+
+classification_report(rf_cm)
+```
+
+```{r}
+# finding the train accuracy 
+print(mean(pred.train == df.train$Condition))
+#  finding the test accuracy 
+mean(pred.test == df.test$Condition)
+
+# checking the importance variables 
+importance(model2)
+```
+```{r}
+# variable importance plot 
+varImpPlot(model2)
+```
+# 10 fold -cross validation for random forest : 
+Cross validation is a technique to avoid overfitting. So, here we apply 10-fold cross validation : 
+```{r}
+set.seed(65)
+cv.error = rep(0,9)
+for (i in 1:9){
+  sample = sample.split(df.train$Condition,SplitRatio = 0.9)
+  df.train = subset(df.train, sample == TRUE)
+  
+  model = randomForest(Condition ~. ,data = df.train, ntree = 500, mtry = 6, importance = TRUE)
+  pred.test = predict(model, df.test, type = 'class') 
+  cv.error[i] = mean(pred.test == df.test$Condition) 
+}
+print(cv.error)
+print(paste(mean(cv.error), 'is the cross validated accuracy')) 
+```
+
+
+### ==========================================
+# model  : Decision Tree Classifier  
+### ===========================================
+
+```{r}
+tree = rpart(Condition ~. , method = 'class', data = df.train)
+tree.preds  = predict(tree, df.test)
+head(tree.preds)
+```
+
+```{r}
+test.preds = apply(tree.preds, 1, which.max)
+to_target_labels = function(x){
+  if(x == 3){
+    'unacc'
+  }else if (x == 1){
+    'acc'
+  }else if (x ==2){
+    'good'
+  }else if (x == 4){
+    'vgood'
+  }
+}
+test.preds = sapply(test.preds, to_target_labels)
+tree.test.cf = table(test.preds, df.test$Condition)
+tree.test.cf
+```
+```{r paged.print=FALSE}
+classification_report(tree.test.cf)
+```
+Interpretation : We understood that precision is very low for the class "good" ie. 50% , and the precision for acc class is 90%. This means that the model could able classify the "acc" class 90% correctly. f1 score is the combination of both precision and recall. In precision our base is the model predictions. But in recall the base is the actuality. 
+
+# 10 fold for Cross validation of decision tree : 
+```{r}
+set.seed(17)
+cv.error = rep(0,9)
+for (i in 1:9){
+  set.seed(i)
+# taking different samples form the training data each time 
+  sample = sample.split(df.train$Condition,SplitRatio = 0.9)
+  df.train = subset(df.train, sample == TRUE)
+  
+  
+  tree = rpart(Condition ~. , method = 'class', data = df.train)
+  test.preds  = predict(tree, df.test)
+  test.preds = apply(test.preds, 1, which.max)
+  test.preds = sapply(test.preds, to_target_labels)
+  cv.error[i] = mean(test.preds == df.test$Condition) 
+}
+print(cv.error)
+print(paste(mean(cv.error), 'is the cross validated accuracy')) 
+```
+INterpretation : We see that in the first trial we get classification accuracy 89.5 % but the cross validated accuracy is 85.00%. This is note a big differences. That means the samples split does affect very much in the model training. So our we have to take the final accuracy as 85.00. 
+
+
+### ==========================================
+# model  : Logistic Regression ; 
+### ============================================
+## preparing the dataset for building a logistic regression model : 
+
+
+
+Now we have a full factor featured training data and test data, Since, we are going to create a logistic regression model we have to convert all these ordered factors to numerical. 
+```{r}
+# creating a copy of both training and testing data 
+log_df.train = df.train
+log_df.test = df.test
+
+
+to_price_order1 = function(x){
+  if (x == "high" | x == "3"){
+    3
+  }else if(x == "low" | x == "1"){
+    1
+  }else if(x == "med" | x == "2"){
+    2
+  }else if(x == "vhigh" | x == '4'){
+    4
+  }else{
+    x
+  }
+}
+log_df.train$BuyingPrice= sapply(log_df.train$BuyingPrice, to_price_order1)
+```
+
+Similar operations we need to do in maintenance cost feature, first lets see the count and their unique values
+```{r}
+log_df.train$Maintenance = sapply(log_df.train$Maintenance, to_price_order1)
+#lets create another function to change ordered labels to numericals.
+to_lugboot1 = function(x){
+  if(x == 'big' | x == '4'){
+    3
+  }else if (x == 'med' | x == '3'){
+    2
+  }else if (x == 'small' | x == '2'){
+    1
+  }
+}
+log_df.train$BootSpace = sapply(log_df.train$BootSpace, to_lugboot1)
+log_df.train$Safety = sapply(log_df.train$Safety, to_price_order1)
+# Creating a function to classify the target column (decision)
+to_decision1 = function(x){
+  if(x == 4 | x == "vgood"){
+    4
+  }else if (x == 3 | x == "good"){
+    3
+  }else if (x == 2 | x == "acc"){
+    2
+  }else if (x == 1 | x == "unacc"){
+    1
+  }
+}
+log_df.train$Condition = sapply(log_df.train$Condition, to_decision1)
+```
+Now lets prepare the test data 
+We need to remove the null value rows in the test data. We cant replace any null values in the test dataframe. Because this is our model validation dataset. So, we first remove them and preprocess the test data in such a way that the test data is in the same format of the created logistic regression model.
+```{r paged.print=FALSE}
+log_df.test = na.omit(log_df.test)
+log_df.test$BuyingPrice = sapply(log_df.test$BuyingPrice, to_price_order1)
+log_df.test$Safety = sapply(log_df.test$Safety, to_price_order1)
+log_df.test$Maintenance = sapply(log_df.test$Maintenance, to_price_order1)
+log_df.test$Condition = sapply(log_df.test$Condition, to_decision1)
+log_df.test$BootSpace = sapply(log_df.test$BootSpace, to_lugboot1)
+to_test_persons1 = function(x){
+  if(x == 'more'){
+    4
+  }else if(x == '4'){
+    3
+  }else if (x == '2'){
+    2
+  }
+}
+log_df.test$NumPersons = sapply(log_df.test$NumPersons, to_test_persons1)
+```
+
+Lets create two function which will convert number of persons and number of doors to numericals. 
+we apply this function to to feature using sapply 
+```{r}
+fun = function(x){
+  if(x =='5more'){
+    4
+  }else{
+    x
+  }
+}
+
+log_df.test$NumDoors = sapply(log_df.test$NumDoors, fun) 
+log_df.train$NumDoors = sapply(log_df.train$NumDoors, fun)
+
+
+
+fun2 = function(x){
+  if(x =='more'){
+    5
+  }else{
+    x
+  }
+}
+
+log_df.test$NumPersons = sapply(log_df.test$NumPersons, fun2) 
+log_df.train$NumPersons = sapply(log_df.train$NumPersons, fun2)
+```
+
+
+lets change the data type to integer. 
+```{r}
+# converting the number of doors and number of persons features into integer type
+log_df.train$NumDoors = as.integer(log_df.train$NumDoors)
+log_df.train$NumPersons = as.integer(log_df.train$NumPersons)
+```
+
+So we prepared the data set for the logistic regression modelling. In this data frame we convert all the ordered categorical to numerical ordering.For building logistic model with respect to multi-classes we need to use nnet library. 
+Now we are going to create the multi-logistic regression model. 
+```{r}
+model1 = nnet::multinom(Condition ~., data = log_df.train)
+# printing the model summary
+print(summary(model1))
+# making the predictions 
+log_df.test = na.omit(log_df.test)
+```
+
+```{r paged.print=FALSE}
+head(log_df.test)
+```
+
+```{r}
+predicted.classes = model1 %>% predict(log_df.test)
+head(predicted.classes)
+model1_cf = table(predicted.classes, log_df.test$Condition)
+print(model1_cf)
+```
+
+## Printing the different accuracy measures for model 1 : Logistic Regression 
+```{r paged.print=FALSE}
+classification_report(model1_cf)
+```
+Interpretation : We understood that precision is very high for the class "1" ie. 83% , and the precision for 3 class is 71%. This means that the model could able classify the "1"class 83% correctly. Here the model cannot identify the class "2" well. f1 score is the combination of both precision and recall. In precision our base is the model predictions. But in recall the base is the actuality. 
+
+
+# 5 fold -cross validation for logistic regression model 
+
+```{r}
+set.seed(17)
+cv.error = rep(0,4)
+for (i in 1:5){
+    set.seed(i)
+# taking different samples form the training data each time 
+    sample = sample.split(log_df.train$Condition,SplitRatio = 0.9)
+    log_df.train = subset(log_df.train, sample == TRUE)
+  
+  
+    model1 = nnet::multinom(Condition ~., data = log_df.train)
+    predicted.classes = model1 %>% predict(log_df.test)
+    cv.error[i] = mean(predicted.classes == log_df.test$Condition) 
+}
+print(cv.error)
+print(paste(mean(cv.error), 'is the cross validated accuracy')) 
+```
+Here we created a five fold cross validation where the mean accuracy score is 76.4% which not so good.
+
+
+### ==========================================
+# Conclusion 
+### ===========================================
+
+we preprocessed the data, to get precised labels in each feature. For creating the logistic regression model we convert all the ordered labels to ordered numericals (1,2,3,4). 
+We actually have a classification problem here. In total we have created three different models. 
+
+0.764739884393064 is the cross validated accuracy for logistic regression.  
+0.850032113037893 is the cross validated accuracy for decision tree.
+0.964033397559409 is the cross validated accuracy for random forest 
+
+So, we can take the random forest model as the final one. 

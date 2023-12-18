@@ -1,0 +1,69 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+data1 <- read.csv(file.choose(), header = FALSE) 
+head(data1) 
+str(data1) 
+summary(data1)
+```
+
+```{r}
+names(data1) <- c("BuyingPrice", "Maintenance", "NumDoors", "NumPersons", "BootSpace", "Safety", "Condition") 
+data1
+```
+
+
+
+
+```{r}
+attach(data1)
+data1 <- transform( data1, BuyingPrice=as.factor(BuyingPrice), Maintenance=as.factor(Maintenance), NumDoors=as.factor( NumDoors), NumPersons=as.factor(NumPersons), BootSpace=as.factor(BootSpace), Safety=as.factor(Safety), Condition=as.factor(Condition) ) 
+str(data1)
+```
+
+```{r}
+library(caTools) 
+set.seed(100) 
+sample = sample.split(data1$Condition, SplitRatio = 0.70) 
+train = subset(data1, sample == TRUE) 
+test = subset(data1, sample == FALSE) 
+summary(train) 
+summary(test) 
+```
+
+```{r}
+library(randomForest)
+model1 <- randomForest(Condition ~ ., data = train,importance = TRUE) 
+model1
+```
+
+```{r}
+model2 <- randomForest(Condition ~ ., data = train, ntree = 500, mtry = 6,importance = TRUE) 
+model2
+```
+
+```{r}
+# Predicting on train set 
+predTrain <- predict(model2, train, type = "class") 
+# Checking classification accuracy 
+table(predTrain, train$Condition)
+```
+
+```{r}
+predValid <- predict(model2, test, type = "class") 
+# Checking classification accuracy
+table(predValid,test$Condition)
+```
+
+```{r}
+mean(predValid ==test$Condition)
+```
+
+```{r}
+importance(model2)
+varImpPlot(model2)
+```
+

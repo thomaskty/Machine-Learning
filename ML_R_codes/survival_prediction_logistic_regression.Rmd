@@ -1,0 +1,136 @@
+---
+title: "Predicting Survival Details using Logistic Regression"
+output: html_notebook
+---
+## Loading the libraries 
+```{r}
+
+```
+
+## Loading the data set 
+```{r paged.print=FALSE}
+df = read.csv('C:\\Users\\ASUS\\Documents\\GitRepo\\Machine-Learning-with-R\\data_fold\\accident.csv')
+head(df)
+```
+## Preprocessing 
+```{r warning=FALSE, paged.print=FALSE}
+# removing the id columns as they provide no relevant information to the model.
+attach(df)
+## Note: Here the target variable is 'dead'
+
+df = subset(df,select = c(-id,-caseid))
+head(df)
+```
+
+
+```{r}
+# getting the structure of data frame 
+str(df)
+```
+```{r message=FALSE, warning=FALSE}
+
+# mapping the missing values 
+library(Amelia)
+missmap(df)
+```
+We can see that inSeverity feature contain missing values 
+
+```{r}
+# finding the total number of missing values in injSeverity column 
+sum(is.na(df$injSeverity))
+```
+```{r}
+# getting unique count of injSeverity feature 
+unique(injSeverity)
+```
+```{r message=FALSE, warning=FALSE}
+# plotting the bar count of injSeverity 
+library(ggplot2)
+ggplot(data = df, aes(x = injSeverity))+ geom_bar(aes (fill = dead))+ theme_minimal()+ ggtitle('                                   injSeverity with survival')
+```
+For injseverity = 4 , the target variable correponding to it is 'dead'
+
+```{r}
+# getting the percentage of counts in injSeverity feature 
+data.frame((table(injSeverity)/(14999-72)) * 100)
+```
+
+```{r paged.print=FALSE}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+# filtering the dataframe for which injSeverity column i na
+head(df %>% filter(is.na(injSeverity)== TRUE))
+```
+
+```{r}
+# replacing missing vlaues in injSeverity column with mode 
+df$injSeverity[is.na(df$injSeverity)] = mode(df$injSeverity)
+```
+
+
+```{r paged.print=FALSE}
+to_encod = function(x){
+  if(x == 'alive'){
+    1
+  }else{
+    0
+  }
+}
+
+# creating new target column y 
+df$y = sapply(df$dead,to_encod)
+
+# removing the categorical dead column 
+df = subset(df, select  = c(-dead))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# splitting the dataset into training and testing 
+library(caTools)
+set.seed(42)
+split = sample.split(df$weight, SplitRatio = 0.70)
+
+df.train = subset(df, split = TRUE)
+df.test = subset(df, split = FALSE)
+```
+
+
+```{r paged.print=FALSE}
+# head of the training data 
+head(df.train)
+```
+
+```{r}
+# building the model 
+model = glm(y~., family = binomial(link = 'logit'), data = df.train)
+summary(model)
+```
+```{r message=FALSE, warning=FALSE}
+fitted.probs = predict(model, newdata = df.test, type = 'response')
+fitted.results = ifelse(fitted.probs>0.5,1,0)
+
+# calculating the accuracies 
+misclasserror = mean(fitted.results != df.test$y, na.rm = T)
+
+print(paste('accuracy', 1-misclasserror))
+```
+
+
+```{r}
+table(df.test$y, fitted.probs >0.5)
+```
+Here the confusion matrix helps us understand how many true negaties and true positive were made by the model. 
+We use roc curve to understand the tradeoff between sensitivity and specificity. 
+
+```{r message=FALSE, warning=FALSE}
+library(pROC)
+test_probs = predict(model, newdata = df.test, type = 'response')
+test_roc = roc(df.test$y ~ test_probs, plot = T, print.auc = T)
+```
+We can see that our auc is 0.993 which pretty good value. 1 represents perfect classifier. 
+This means that 99.3 % chance that the model will be able to distinguish between positive and negative classes. 
+
+
+=========================================================================================

@@ -1,0 +1,93 @@
+---
+title: "Support Vector Machines - svm"
+output: html_notebook
+---
+# Support Vector Machines
+creating a hyperplane which linearly seperate the data and it also uses a kernel function. 
+
+# Loading the major libraries 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(caTools) # data splitting 
+library(e1071) # dependency package
+library(tidyverse) # data analysis 
+library(dplyr) # data analysis 
+library(psych) # data description 
+library(caret)  # confusion matrix and partition 
+library(Amelia) # missing values 
+
+```
+# Loading the data 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+heart = read.csv('/home/thomaskutty/Gitrepo/Machine-Learning-with-R/data_fold/heart.csv')
+head(heart)
+```
+# Getting the structure of the data
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+str(heart)
+```
+# Data Description 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+describe(heart)
+```
+# Checking the misssing values 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+colSums(is.na(heart))
+```
+# Splitting the data into train and test 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+index  = createDataPartition(y = heart$target, p = 0.7, list = FALSE)
+training_heart = heart[index,] 
+testing_heart = heart[-index,] 
+print(dim(training_heart))
+print(dim(testing_heart))
+print(anyNA(heart))
+```
+# Getting the structure of training data 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+str(training_heart)
+```
+# Converting the target column into factor variable 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+training_heart$target = as.factor(training_heart$target)
+str(training_heart$target)
+```
+# Creating the svm model 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(klaR)
+# repeated cross validation 
+tc = trainControl(method = 'repeatedcv', number = 10, repeats = 3) 
+set.seed(20)
+svm_model = train(target~. , data = training_heart, method = 'svmLinear', trControl = tc, 
+                  preProcess = c('center', 'scale'), tuneLength = 10)
+
+# the preprocessing parameter is for centering and scaling the training data 
+```
+# Printing the model output 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+svm_model
+```
+# Making new predictions 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+predictions  =  predict(svm_model, newdata = testing_heart)
+# printing the accuracy and confusion matrices 
+confusionMatrix(table(predictions, testing_heart$target))
+```
+# Model hyperparamter tuning 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+set.seed(324) 
+grid = expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
+svm_model_grid = train(target~. , data = training_heart, method = 'svmLinear', 
+                       trainControl = train_ctl, 
+                       preProcess = c('center', 'scale'), 
+                       tuneGrid = grid, 
+                       tuneLength = 10) 
+
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+svm_model_grid
+```
+# Plotting the svm model 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+plot(svm_model_grid)
+```

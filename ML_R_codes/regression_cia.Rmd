@@ -1,0 +1,83 @@
+---
+title: "Regression_CIA    - 20122011_Thomaskutty Reji"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+# Loading the data
+The data set contain company records of different parameters of an employee (such as satisfaction level, Salary, number of promotion, left the company etc.) .The problem statement is to predict whether an employee leave the company or stay in the company.
+Here the respnse variable is left(1,0); So, first lets load the datas set. 
+```{r paged.print=FALSE}
+df = read.csv('/home/thomaskutty/Downloads/hr.csv')
+df = subset(df, select = c(-number_project,-time_spend_company,-promotion_last_5years,-Work_accident)) 
+head(df)
+```
+
+```{r}
+str(df)
+```
+
+# Creating logistic model using satisfaction_level, last_evaluation, average_montly_hours 
+```{r paged.print=FALSE}
+logit_model = glm(left ~satisfaction_level+last_evaluation+average_montly_hours,
+               data = df, family = binomial)
+summary(logit_model)
+```
+
+
+# Residual plots of logit model. 
+```{r fig.height=10, fig.width=10}
+par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
+plot(logit_model)
+par(mfrow=c(1,1)) # Change back to 1 x 1
+```
+
+
+## Interpretation of Logit model summary : 
+
+The estimated coefficients of the logistic regression model that predicts the probability of default(1 or 0) using satisfaction_level, last_evaluation and average_monthly_hours. A one-unit increase in satisfaction_level is associated with an increase in the log odds of default class by -3.81 units. The z-statistics in the summary plays the same role as the t-statistic in the linear regression output. 
+
+From the p value we understood that all the selected features are good predictors. 
+
+The null deviance shows how well the response is predicted by the model with nothing but an intercept.
+The residual deviance shows how well the response is predicted by the model when the predictors are included. From the model summary, it can be seen that the deviance goes down by 2302 when 3 predictor variables are added (note: degrees of freedom = no. of observations – no. of predictors) . This increase in deviance is evidence of a significant lack of fit.
+If your Null Deviance is really small, it means that the Null Model explains the data pretty well. Likewise with your Residual Deviance.
+
+Then we have the AIC, the akaike information criterion, which in this context, is just the residual deviance adjusted for the number of parameters in the model. This AIC can be used to compare one model to another. 
+we can see that the fisher scoring iterations is 4 : this tells us how quickly the glm() function converged on the maximum likelihood estimates for the coefficients.  
+
+## =======================================
+
+# Creating linear model using satisfaction_level, last_evaluation, average_montly_hours 
+```{r}
+linear_model = lm(left ~satisfaction_level+last_evaluation+average_montly_hours,
+               data = df)
+summary(linear_model)
+```
+## Interpretation of linear model summary. 
+we can see that all the predictor variables are significant. But we get a very low accuracy (r2 value). This is because , here we have a classification problem. 
+A one-unit increase in satisfaction_level is associated with decrease in the default class by 6.688e-01 units. 
+
+# Residual plots of linear model 
+```{r fig.height=10, fig.width=10}
+par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
+plot(linear_model)
+par(mfrow=c(1,1)) # Change back to 1 x 1
+```
+From the regression plots we can see that the model violates the rule that residuals should be independently and identically distributed. The residual plot shows a non normal plot, so it violates normality assumption of residuals.From the residuals - leveraage plot, We can see that there is no significant outliers in the data set. Residuals follow a pattern( from the residual vs fitted plot)
+
+In all the residual plots we can see two categories of residuals. Which clearly shows that the data belongs to two categories.
+# Normality checking ( shapiro wilk test )
+```{r warning=FALSE}
+library(lmtest)
+bptest(linear_model)
+```
+This implies that the model suffers from heteroskedasticity. 
+```{r message=FALSE, warning=FALSE}
+library(car)
+vif(linear_model)
+```
+From the vif test we found that there is no multicollinearity. 
+
+
+## ================================================

@@ -1,0 +1,222 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r paged.print=FALSE}
+# loading the data 
+df = read.csv('/home/thomaskutty/Gitrepo/Machine-Learning-with-R/data_fold/adult.csv')
+head(df)
+```
+```{r}
+# getting the description of the dataset 
+str(df)
+```
+Note: In the dataset we have integer and character datatyped features--
+
+integer features are : age, fnlwgt, education.num, capital.gain, capital.loss, hours.per.week
+character features are : workclass, education, marital.status, occupation, relationship, race, sex, native.country, income. 
+
+First we can convert income datatype to more meaningful names ( high, low) -- these representing two classes 
+
+objective : We have to create a decision tree model which classifies each data as high or low (income)
+
+# Solution : path 
+  =====================================
+
+* Splitting the dataframe into training and testing 
+
+* first we will do some preprocessing on train data 
+
+* Analyzing the data using ggplot  (visualizations)
+
+* Model building 
+
+* creating the confusion metrics
+
+* checking different accuracy matrices 
+
+* preprocess the test data 
+
+* applying the model on test data 
+
+* Conclusion 
+ 
+
+```{r}
+# Splitting the data into training and testing 
+library(caTools)
+# help(caTools)
+# help("sample.split")
+sample = sample.split(df$age,SplitRatio = 0.8)
+df.train = subset(df, sample == TRUE)
+df.test = subset(df, sample == FALSE)
+print(dim(df.train))
+print(dim(df.test))
+```
+Note: Now analyzing the train data and building the model 
+```{r}
+# changing the names of target classes to (high, low)
+to_target = function(x){
+  if(x == '<=50K'){
+    "low"
+  }else{
+    "high"
+  }
+}
+# applying the above function to the target feature 
+df.train$income = sapply(df.train$income, to_target)
+```
+```{r}
+library(ggplot2)
+# checking whether the data set is balanced or not 
+ggplot(data = df.train, aes(income)) + geom_bar(fill = 'lightgreen') + theme_minimal() 
+```
+Its clear that our data set is not balanced. So only the accuracy metric cannot be used for model performance analysis. We have to look for other performance measures like recall, precision, f1 score etc.
+
+# Analysing the numerical features 
+```{r}
+# integer features are : age, fnlwgt, education.num, capital.gain, capital.loss, hours.per.week
+
+# analyzing age: 
+ggplot(data  = df.train, aes(age)) + geom_histogram(binwidth = 3, fill = 'lightgreen')+ theme_minimal()
+```
+In this dataset the most of the ages are between 25 and 50.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# finding the distribution of fnlwgt 
+print(summary(df.train$fnlwgt))
+print(ggplot(data = df.train, aes(fnlwgt))+ geom_histogram(fill = 'lightblue')+ theme_minimal())
+```
+Note: fnlwgt is left skewed distribution. 
+
+```{r}
+# working class feature cleaning 
+print(table(df.train$workclass))
+# changing the ? in workclass 
+to_workclass = function(x){
+  if(x == '?'){
+    'General'
+  }else{
+    x
+  }
+}
+# applying the function to the feature 
+df.train$workclass = sapply(df.train$workclass, to_workclass)
+```
+
+```{r}
+# cleaning occupation 
+print(table(df.train$occupation))
+
+# creating a function theme(axis.text.x = element_text(angle=90, hjust=1))
+to_occupation = function(x){
+  if(x == "?"){
+    'General'
+  }else{
+    x
+  }
+}
+df.train$occupation = sapply(df.train$occupation, to_occupation)
+```
+```{r}
+# native country feature 
+print(table(df.train$native.country))
+
+# lets replace the ? with united states
+to_us = function(x){
+  if(x == "?"){
+    'United-States'
+  }else{
+    x
+  }
+}
+df.train$native.country = sapply(df.train$native.country, to_us)
+```
+We observed that there are 469 rows for which the country feature is ? ( unknown) 
+```{r fig.height=10, fig.width=10}
+ggplot(data = df.train, aes(workclass)) + geom_bar(aes(fill = native.country)) + theme_minimal()+theme(axis.text.x = element_text(angle=90, hjust=1))
+```
+
+```{r}
+# analysing the race and income 
+library(ggplot2)
+ggplot(data = df.train, aes(race))+ geom_bar(aes(fill = income)) + theme_minimal()
+```
+Note : Among whites more than half of them have low income. 
+
+
+```{r}
+# model building 
+library(rpart)
+df.train = subset(df.train, select = c(-native.country))
+tree = rpart(income ~. , method = 'class', data = df.train)
+
+# preprocessing the test data ( cleaning )
+df.test$workclass = sapply(df.test$workclass, to_workclass)
+df.test$native.country = sapply(df.test$native.country, to_us)
+df.test$occupation = sapply(df.test$occupation, to_occupation)
+
+# removing the native.country feature 
+df.test = subset(df.test, select = c(-native.country))
+
+
+tree.preds  = predict(tree, df.test)
+head(tree.preds)
+```
+Note: Now we create  two probability columns where the first column shows the probability of the income high, and the second column shows the probability of the income not high. 
+
+```{r}
+tree.preds = as.data.frame(tree.preds)
+to_result = function(x){
+  if(x <= 0.5){
+    'low'
+  }else{
+    'high'
+  }
+}
+tree.preds$final_class = sapply(tree.preds$high, to_result)
+head(tree.preds)
+```
+classification rule : if the probability of tree.preds$high is greater than 0.5 then the result should be high income 
+otherwise low.
+
+```{r paged.print=FALSE}
+df.test$income = sapply(df.test$income, to_target)
+head(df.test)
+```
+
+
+```{r}
+library(caret)
+library(e1071)
+cf = table(tree.preds$final_class, df.test$income)
+confusionMatrix(cf)
+```
+
+NOte: confidence interval is a range of values er are fairly sure our true value lies in. NO information rate is just the largest class percentage in the data. 
+cohen kappa is a type of classification evaluation metric.
+accuracy is the percentage of correctly classified instances out of all instances. It is more useful on a binary classification than multiclass classification problems because it can be less clear exactly hoe the accuracy breaks down across the classes. 
+sensitivity if the ability of a test to correctly identify those that are not high and specificity is the true negative rate. 
+```{r}
+library(rpart.plot)
+rpart.plot(tree,box.col = c('red','green'))
+```
+```{r}
+prp(tree)
+```
+From the above graph we can see that if a husband has education Bch and capital is greater than 5096 then the income is high. 
+
+```{r message=FALSE, warning=FALSE}
+library(pROC)
+change = function(x){
+  if(x == 'high'){
+    1
+  }else{
+    0
+  }
+}
+
+test_probs = sapply(tree.preds$final_class, change)
+test_roc = roc(df.test$income~test_probs, plot = TRUE, print.auc = TRUE)
+```
+we can see that the auc is 0.727. where 1 represents the perfect classifier and 0.5 represents worthless classifier. 
+So, there is a 72.7 % chance that the model will be able to distinguish between positive and negative class. ie. whether the income is high or low. ============================================================================================================================================

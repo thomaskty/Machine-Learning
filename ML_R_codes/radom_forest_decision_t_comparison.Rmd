@@ -1,0 +1,273 @@
+---
+title: "rlab 15 : Comparing Random Forest and Decision Tree    -Thomaskutty_20122011"
+output: html_notebook
+---
+# Importing the libraries 
+```{r message=FALSE, warning=FALSE}
+# importing libraries 
+library(Amelia)   # missing value plotting 
+library(ggplot2)  # visualization 
+library(caTools)  # for train test split 
+library(rpart.plot) # decision tree plotting 
+library(rpart)  # decision tree models 
+library(caret) # for confusion matrix 
+library(corrplot)  # for plotting the correlation 
+library(pROC) # to build the roc curve
+library(e1071) # dependency for printing confusion matrix 
+library(randomForest)
+```
+
+
+```{r paged.print=FALSE}
+# loading the data 
+df = read.csv('/home/thomaskutty/Gitrepo/Machine-Learning-with-R/data_fold/adult.csv', stringsAsFactors = TRUE)
+head(df)
+```
+```{r}
+# getting the description of the dataset 
+str(df)
+```
+Note: In the dataset we have integer and character datatyped features--
+
+integer features are : age, fnlwgt, education.num, capital.gain, capital.loss, hours.per.week
+character features are : workclass, education, marital.status, occupation, relationship, race, sex, native.country, income. 
+
+First we can convert income datatype to more meaningful names ( high, low) -- these representing two classes 
+
+objective : We have to compare the  decision tree model  and random forest classifier ( targget feature is income )
+
+# Solution : path 
+  =====================================
+
+* Splitting the dataframe into training and testing 
+
+* first we will do some preprocessing on train data 
+
+* Analyzing the data using ggplot  (visualizations)
+
+* Model building ( decision tree and random forest)
+
+* creating the confusion metrices
+
+* checking different accuracy matrices 
+
+* preprocess the test data 
+
+* applying the models on the test data 
+
+* comparisons and conclusion 
+
+# Checking whether there is any missing values or not
+```{r}
+colSums(is.na(df))
+```
+
+ 
+# train test split 
+```{r}
+# Splitting the data into training and testing 
+library(caTools)
+# help(caTools)
+# help("sample.split")
+sample = sample.split(df$age,SplitRatio = 0.8)
+df.train = subset(df, sample == TRUE)
+df.test = subset(df, sample == FALSE)
+print(dim(df.train))
+print(dim(df.test))
+```
+
+
+
+
+
+# Changing the target labels and checking whether the data set is balanced or not 
+```{r}
+# changing the names of target classes to (high, low)
+to_target = function(x){
+  if(x == '<=50K'){
+    "low"
+  }else{
+    "high"
+  }
+}
+# applying the above function to the target feature 
+df.train$income = sapply(df.train$income, to_target)
+```
+```{r}
+library(ggplot2)
+# checking whether the data set is balanced or not 
+ggplot(data = df.train, aes(income)) + geom_bar(fill = 'lightgreen') + theme_minimal() 
+```
+Its clear that our data set is not balanced. So only the accuracy metric cannot be used for model performance analysis. We have to look for other performance measures like recall, precision, f1 score etc.
+
+
+# Cleaning native country feature 
+# native country feature 
+```{r}
+print(table(df.train$native.country))
+# lets replace the ? with united states
+to_us = function(x){
+  if(x == "?"){
+    'United-States'
+  }else{
+    x
+  }
+}
+df.train$native.country = sapply(df.train$native.country, to_us)
+```
+
+
+```{r}
+# analysing the race and income 
+library(ggplot2)
+ggplot(data = df.train, aes(race))+ geom_bar(aes(fill = income)) + theme_minimal()
+```
+Note : Among whites more than half of them have low income. 
+
+Its clear that our data set is not balanced. So only the accuracy metric cannot be used for model performance analysis. We have to look for other performance measures like recall, precision, f1 score etc.
+
+# Analysing the numerical features 
+```{r}
+# integer features are : age, fnlwgt, education.num, capital.gain, capital.loss, hours.per.week
+# analyzing age: 
+ggplot(data  = df.train, aes(age)) + geom_histogram(binwidth = 3, fill = 'lightgreen')+ theme_minimal()
+```
+In this dataset the most of the ages are between 25 and 50.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# finding the distribution of fnlwgt 
+print(summary(df.train$fnlwgt))
+print(ggplot(data = df.train, aes(fnlwgt))+ geom_histogram(fill = 'lightblue')+ theme_minimal())
+```
+Note: fnlwgt is left skewed distribution. 
+
+```{r}
+# working class feature cleaning 
+print(table(df.train$workclass))
+# changing the ? in workclass 
+to_workclass = function(x){
+  if(x == '?'){
+    'General'
+  }else{
+    x
+  }
+}
+# applying the function to the feature 
+df.train$workclass = sapply(df.train$workclass, to_workclass)
+```
+
+```{r}
+# cleaning occupation 
+print(table(df.train$occupation))
+# creating a function theme(axis.text.x = element_text(angle=90, hjust=1))
+to_occupation = function(x){
+  if(x == "?"){
+    'General'
+  }else{
+    x
+  }
+}
+df.train$occupation = sapply(df.train$occupation, to_occupation)
+```
+
+# preprocessing the test data ( cleaning )
+```{r}
+df.test$workclass = sapply(df.test$workclass, to_workclass)
+df.test$native.country = sapply(df.test$native.country, to_us)
+df.test$occupation = sapply(df.test$occupation, to_occupation)
+df.test$income = sapply(df.test$income, to_target)
+
+# removing the native.country feature 
+```
+
+# Printing final test data and train data 
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+head(df.train)
+```
+
+```{r warning=FALSE, paged.print=FALSE}
+head(df.test)
+```
+
+==============================================================================================
+# Random Forest CLassifier : Model 1 
+
+
+```{r}
+df.train$income = as.factor(df.train$income)
+model1 = randomForest(income ~ ., data = df.train, importance = TRUE)
+model1
+```
+
+```{r}
+str(df.train)
+```
+
+```{r}
+model2 = randomForest(income ~ ., data = df.train, ntree = 300, mtry = 10, importance = TRUE)
+model2
+```
+# PREDICTION
+```{r}
+predTrain = predict(model2, df.train, type = "class") 
+table(predTrain, df.train$income)
+```
+
+# Prediction on the validation set 
+```{r}
+predValid = predict(model1, df.test, type = 'class')
+table(predValid, df.test$income)
+```
+
+While testing on the train dataset there was no missclassification of the data which is given by the diagonal matrix. In the test dataset there are (299+ 598) data points were missclassified. 
+
+```{r}
+mean(predValid == df.test$income)
+```
+This proves that the model attained an accuraccy of 97 % approximately. 
+
+# Checking important variables 
+```{r}
+importance(model2)
+```
+
+```{r}
+importance(model1)
+```
+
+# Variable Importancd plot 
+```{r}
+varImpPlot(model1)
+```
+
+```{r}
+varImpPlot(model2)
+```
+The higher the value of mean decrease accuracy or mean decrease Gini score, the higher the importance of the variable in the model. 
+
+# Comparison with the Decision tree
+```{r}
+df.train = subset(df.train, select = c(-native.country))
+df.test  = subset(df.test, select = c(-native.country))
+model_dt = train(income ~ . , data = df.train, method = 'rpart')
+
+# prediction 
+model_dt_1 = predict(model_dt, data = df.train) 
+table(model_dt_1, df.train$income)
+```
+
+```{r}
+mean(model_dt_1 == df.train$income)
+```
+So, on the trianingg dataset  the accuracy is around 83 % and there is a lot of misclassification 
+
+# Testing the Decision TRee model 
+
+```{r}
+model_dt_vs = predict(model_dt, newdata = df.test)
+table(model_dt_vs, df.test$income)
+```
+```{r}
+mean(model_dt_vs == df.test$income)
+```
+# Inference and conclusion 
+WHen we use decision tree we got 83 % on accuray on test data but random forest gave accuracy of around 86 % . We know that in random forest algorithm we use many number of decision trees using bagging ensemble technique. So, we are sure that random forest will give high accuracy over a single decision tree. 
