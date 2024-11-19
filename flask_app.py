@@ -10,13 +10,11 @@ model = pickle.load(open('reg_model.pkl', 'rb'))
 def home():
     return render_template('index.html')
 
-
 @app.route("/predict",methods=['POST'])
 def predict():
     if request.method == 'POST':
 
         # getting the feature inputs from the user 
-        
         Medu = request.form.get("Medu")	
         Fedu = request.form.get("Fedu")
         health = request.form.get("Health")
@@ -31,8 +29,6 @@ def predict():
         # prediction using model.predict 
         output = model.predict(array.reshape(1,-1))
         output =  round(output[0],2)
-
-
         # return the page with updated predicted text 
         return render_template('index.html', prediction_text= "G3 marks is {}".format(output))
     else:
@@ -41,9 +37,3 @@ def predict():
     
 if __name__ == "__main__":
     app.run(debug=True)
-    
-
-
-
-
-
