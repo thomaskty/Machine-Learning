@@ -3,162 +3,366 @@ warnings.filterwarnings('ignore')
 
 import pandas as pd
 pd.set_option('display.float_format',lambda x : '%.3f' % x)
-pd.set_option('display.max_columns',10000)
+# pd.set_option('display.max_columns',10000)
 # pd.set_option('display.max_colwidth',10000)
 
 import numpy as np
-np.set_printoptions(suppress=True,precision=5,floatmode='fixed')
+# np.set_printoptions(suppress=True,precision=5,floatmode='fixed')
+
+import sklearn
+import sklearn as sk
+from sklearn import preprocessing
+from sklearn.metrics import confusion_matrix,roc_curve,auc
+from sklearn.metrics import precision_score,recall_score,f1_score
+from sklearn.metrics import precision_recall_curve, roc_curve, auc
+import matplotlib.pyplot as plt 
+import seaborn as sns
+from functools import * 
 
 import os
-import pyodbc
-import numpy as np
-import sklearn as sk
 import dateutil
 import datetime
 import itertools
 import pytz
-import seaborn as sn
-import matplotlib.pyplot as plt
-import sklearn
-from sklearn import preprocessing
+
+from scipy import stats
+from prettytable import PrettyTable
 
 def get_current_time_ist():
-   ist = pytz.timezone('Asia/Kolkata')
-   now_utc = datetime.now(pytz.utc)
-   now_ist = now_utc.astimezone(ist)
-   formatted_time = now_ist.strftime('%Y-%m-%d %I:%M:%S %p')
-   output = str(formatted_time)
-   replacement_dict = {':':'','-':'',' ':''}
-   for old,new in replacement_dict.items():
-       output = output.replace(old,new)
-   return output
+    """
+    Get the current time in IST (Indian Standard Time) in a compact string format.
 
-col_names = lambda tbl : list(execute('describe {}'.format(tbl)).col_name)
-def execute(query):
-   conn = pyodbc.connect('DSN=HIVEProd',autocommit= True)
-   print('QUERY : {}'.format(query))
-   out = pd.read_sql(query,conn)
-   out.columns = [i.split('.')[1] if '.' in i else i for i in out.columns]
-   return out
+    The function retrieves the current UTC time, converts it to IST, and formats it into
+    a compact string by removing special characters like `:` and `-`.
 
-def create_table(query):
-   def shape(table_name,query=False):
-       y = len(col_names(table_name))
-       x = execute('select count(*) from {}'.format(table_name)).iloc[0][0]
-       return (x,y)
-   table_name = query.lower().split('create table ')[1].split(' ')[0]
-   print('TABLE NAME : {}'.format(table_name))
-   print('QUERY:')
-   print('\n{}'.format(query))
-   con = pyodbc.connect('DSN=HiveProd', autocommit=True)
-   cur = con.cursor()
-   cur.execute('drop table if exists '+table_name)
-   cur.execute(query)
-   print('SHAPE : {}'.format(str(shape(table_name))))
-   cur.close()
+    Returns:
+    --------
+    str:
+        The current IST time formatted as `YYYYMMDDhhmmssAM/PM`.
 
-def execute_sql(query):
-   con = pyodbc.connect('DSN=HiveProd', autocommit=True)
-   cur = con.cursor()
-   cur.execute(query)
-   print('Execution Completed')
-   cur.close()
+    Example:
+    --------
+    >>> get_current_time_ist()
+    '20241124024230PM'
+    """
+    try:
+        # Define the IST timezone
+        ist = pytz.timezone('Asia/Kolkata')
+        
+        # Get the current UTC time
+        now_utc = datetime.datetime.now(pytz.utc)
+        
+        # Convert UTC to IST
+        now_ist = now_utc.astimezone(ist)
+        
+        # Format IST time as a string
+        formatted_time = now_ist.strftime('%Y-%m-%d %I:%M:%S %p')
+        
+        # Remove unwanted characters for compact output
+        replacement_dict = {':': '', '-': '', ' ': ''}
+        output = formatted_time
+        for old, new in replacement_dict.items():
+            output = output.replace(old, new)
+        
+        return output
+
+    except Exception as e:
+        print(f"Error in getting current IST time: {e}")
+        return None
+
 
 def last_day(date):
-   next_month = date.replace(day=28)+datetime.timedelta(days=4)
-   return next_month -datetime.timedelta(days=next_month.day)
+    """
+    Get the last day of the month for a given date.
+
+    Parameters:
+    -----------
+    date : datetime
+        The input date.
+
+    Returns:
+    --------
+    datetime
+        The last day of the month.
+    """
+    next_month = date.replace(day=28) + datetime.timedelta(days=4)  # Ensures crossing into the next month
+    return next_month - datetime.timedelta(days=next_month.day)  # Subtract days to move back to the last day
+
 
 def get_yyyymm(dt):
-   leads_rpt_dt_yyyy = str(last_day(dt).year)
-   leads_rpt_dt_mm = str(last_day(dt).month)
-   leads_rpt_dt_mm = '0'+leads_rpt_dt_mm if len(leads_rpt_dt_mm)==1 else leads_rpt_dt_mm
-   mmyyyy = leads_rpt_dt_mm+leads_rpt_dt_yyyy
-   yyyymm = leads_rpt_dt_yyyy+leads_rpt_dt_mm
-   return mmyyyy,yyyymm
+    """
+    Get the month and year in 'MMYYYY' and 'YYYYMM' formats for the last day of the month.
 
-def get_previous_months(date_str,n):
-   date = datetime.strptime(date_str,'%Y-%m-%d')
-   end_dates = []
-   for _ in range(n):
-       date = date - relativedelta(months=1)
-       end_of_month = date.replace(day=1)+relativedelta(day=31)
-       end_dates.append(end_of_month.strftime('%Y-%m-%d'))
-   return tuple(end_dates)
+    Parameters:
+    -----------
+    dt : datetime
+        The input date.
 
-def col_names(tbl):
-   return list(execute('describe {}'.format(tbl)).col_name)
+    Returns:
+    --------
+    tuple
+        A tuple containing:
+        - `mmyyyy` (str): Month and year in 'MMYYYY' format.
+        - `yyyymm` (str): Year and month in 'YYYYMM' format.
+    """
+    end_of_month = last_day(dt)
+    year = str(end_of_month.year)
+    month = f"{end_of_month.month:02d}"  # Ensure two digits for the month
+    mmyyyy = f"{month}{year}"
+    yyyymm = f"{year}{month}"
+    return mmyyyy, yyyymm
 
-def shape(table_name,query=False):
-   y = len(col_names(table_name))
-   x = execute("select count(*) from {}".format(table_name)).iloc[0][0]
-   return (x,y)
 
-def lag_n(input_date,n=-1):
-   '''returns the last of the nth lag of input date'''
-   return last_day(input_date+dateutil.relativedelta.relativedelta(months=n))
+def get_previous_months(date_str, n):
+    """
+    Get the end dates of the last `n` months from a given date string.
+
+    Parameters:
+    -----------
+    date_str : str
+        The input date in 'YYYY-MM-DD' format.
+    n : int
+        Number of previous months to compute.
+
+    Returns:
+    --------
+    tuple
+        A tuple of strings representing the last days of the previous `n` months in 'YYYY-MM-DD' format.
+    """
+    date = datetime.strptime(date_str, '%Y-%m-%d')  # Parse the input string into a datetime object
+    end_dates = []
+    for _ in range(n):
+        date = date - dateutil.relativedelta.relativedelta(months=1)  # Move to the previous month
+        end_of_month = last_day(date)  # Get the last day of the month
+        end_dates.append(end_of_month.strftime('%Y-%m-%d'))  # Format as 'YYYY-MM-DD'
+    return tuple(end_dates)
+
+
+def lag_n(input_date, n=-1):
+    """
+    Get the last day of the nth lagged month relative to a given date.
+
+    Parameters:
+    -----------
+    input_date : datetime
+        The reference date.
+    n : int, optional
+        The number of months to lag. Negative values move backward. (Default: -1)
+
+    Returns:
+    --------
+    datetime
+        The last day of the lagged month.
+    """
+    lagged_date = input_date + dateutil.relativedelta.relativedelta(months=n)  # Compute the lagged date
+    return last_day(lagged_date)  # Get the last day of that month
+
 
 def show_dateinfo():
-    date_current = datetime.date.today()
-    date_lag = lag_n(date_current,n=-1)
-    month_name_current = date_current.strftime('%B')
-    month_name_lag = date_lag.strftime('%B')
-    year_current = date_current.year
-    year_lag = date_lag.year
-    # yyyymm format current month and previous_month
-    mmyyyy_current,yyyymm_current = get_yyyymm(date_current)
-    mmyyyy_lag,yyyymm_lag = get_yyyymm(date_lag)
+    """
+    Display current and previous month's date-related information.
 
-    print('date current = {}'.format(date_current))
-    print('date lag (-1)  = {}'.format(date_lag))
-    print('month name current = {}'.format(month_name_current))
-    print('month name lag  = {}'.format(month_name_lag))
-    print('year current = {}'.format(year_current))
-    print('year_lag = {}'.format(year_lag))
-    print('mmyyyy_current = {}'.format(mmyyyy_current))
-    print('yyyymm_current = {}'.format(yyyymm_current))
-    print('mmyyyy_lag = {}'.format(mmyyyy_lag))
-    print('yyyymm_lag = {}'.format(yyyymm_lag))
+    This function calculates and prints the following details:
+    - Current date and the date of the previous month (-1 month lag).
+    - Current and previous month's names.
+    - Current and previous year's values.
+    - Current and previous month's representations in "mmyyyy" and "yyyymm" formats.
+
+    Assumptions:
+    - The helper functions `lag_n(date, n)` and `get_yyyymm(date)` are pre-defined:
+      - `lag_n(date, n)`: Adjusts the given `date` by `n` months.
+      - `get_yyyymm(date)`: Returns two formatted strings: "mmyyyy" and "yyyymm" for the given `date`.
+
+    Returns:
+    --------
+    None
+        Outputs the date-related information directly to the console.
+
+    Example:
+    --------
+    >>> show_dateinfo()
+    date current = 2024-11-24
+    date lag (-1) = 2024-10-24
+    month name current = November
+    month name lag = October
+    year current = 2024
+    year lag = 2024
+    mmyyyy_current = 112024
+    yyyymm_current = 202411
+    mmyyyy_lag = 102024
+    yyyymm_lag = 202410
+    """
+    try:
+        # Current date and previous month's date
+        date_current = datetime.date.today()
+        date_lag = lag_n(date_current, n=-1)
+        
+        # Extracting month names and years
+        month_name_current = date_current.strftime('%B')
+        month_name_lag = date_lag.strftime('%B')
+        year_current = date_current.year
+        year_lag = date_lag.year
+        
+        # Format current and lagged dates into "mmyyyy" and "yyyymm"
+        mmyyyy_current, yyyymm_current = get_yyyymm(date_current)
+        mmyyyy_lag, yyyymm_lag = get_yyyymm(date_lag)
+
+        dd = pd.DataFrame(columns = ['Item', 'Value'])
+
+        # Print formatted results
+        dd.loc["date current"] = date_current
+        dd.loc["date lag (-1)"] = date_lag
+        dd.loc["month name current"] = month_name_current
+        dd.loc["month name lag"] = month_name_lag
+        dd.loc["year current"] = year_current
+        dd.loc["year lag"] = year_lag
+        dd.loc["mmyyyy_current"] = mmyyyy_current
+        dd.loc["yyyymm_current"] = yyyymm_current
+        dd.loc["mmyyyy_lag"] = mmyyyy_lag
+        dd.loc["yyyymm_lag"] = yyyymm_lag
+
+        table(dd)
+
+    except NameError as e:
+        print(f"Error: Missing required function or variable: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 
 
-def load_data(query,chunksize):
-   con = pyodbc.connect("DSN=HiveProd", autocommit= True)       
-   dd = pd.read_sql(query,con,chunksize=chunksize)
-   cnt=0
-   df_chunk = pd.DataFrame()
-   for chunk in dd:
-       cnt=cnt+1
-       chunk=chunk.replace(r'^\s*$',np.nan,regex=True)
-       print(chunk.shape)
-       df_chunk=df_chunk.append(chunk)
-       del chunk
-   df_chunk.columns = [i.split('.')[1] if '.' in i else i for i in df_chunk.columns]
-   return df_chunk
+def trend(x):
+    """
+    Compute the normalized trend score of a sequence.
 
-def row_trend(x):
-   dd = np.asarray(x)
-   if len(dd) !=1:
-       denum = (len(dd)-1)*len(dd)/2
-       ddcopy = dd[:]
-       addall = 0
-       suball = 0
-       for p in range(0,len(ddcopy)-1):
-           element = dd[0]
-           dd = dd[1:]
-           check_eql = sum(dd == element)
-           subtr = len(dd) - sum(dd > element) - check_eql
-           addr = len(dd) - subtr - check_eql
-           suball = suball + subtr
-           addall = addall + addr
-       return (-suball + addall)/denum
-   else:
-       return 0
+    The trend score measures the relative ordering of elements in a sequence.
+    A positive score indicates an increasing trend, 
+    while a negative score indicates a decreasing trend.
 
-def plot_heatmap(data):
-   plt.figure(figsize = (15,7))
-   feat_num= data.shape[0]
-   corrMatrix = data.corr().abs().round(2)
-   sn.heatmap(corrMatrix,annot=True)
-   plt.show()
+    Parameters:
+    -----------
+    x : array-like
+        A sequence of numeric values.
+
+    Returns:
+    --------
+    float
+        The normalized trend score, ranging from -1 (strictly decreasing)
+        to 1 (strictly increasing). Returns 0 for a single-element sequence.
+
+    Notes:
+    ------
+    - The computation involves counting the number of elements greater than, 
+      less than, or equal to each element in the sequence.
+    - The normalization factor ensures the score is bounded between -1 and 1.
+
+    Example:
+    --------
+    >>> row_trend([1, 2, 3, 4])
+    1.0
+    >>> row_trend([4, 3, 2, 1])
+    -1.0
+    >>> row_trend([1, 3, 2, 4])
+    0.3333333333333333
+    """
+    dd = np.asarray(x)
+    
+    if len(dd) <= 1:
+        return 0  # Single element or empty sequence has no trend
+    
+    # Normalization factor for total comparisons
+    denum = (len(dd) - 1) * len(dd) / 2
+
+    suball = 0
+    addall = 0
+    
+    # Iterate over each element to compute comparisons
+    for i in range(len(dd) - 1):
+        element = dd[i]
+        remaining = dd[i + 1:]
+        
+        suball += np.sum(remaining < element)
+        addall += np.sum(remaining > element)
+
+    # Normalize the trend score
+    return (addall - suball) / denum
+
+def table(input_dataframe):
+    """
+    Display a Pandas DataFrame or Series as a PrettyTable.
+    
+    This function takes a Pandas DataFrame or Series, processes it into a format suitable 
+    for PrettyTable, and displays the output in a clean tabular format. It handles:
+    - Multi-index DataFrames by resetting the index.
+    - Multi-level column names by flattening them.
+    - Pandas Series by converting them into a two-column DataFrame.
+
+    Parameters:
+    -----------
+    input_dataframe : pd.DataFrame or pd.Series
+        The Pandas object to be displayed as a PrettyTable.
+
+    Returns:
+    --------
+    None
+        Prints the PrettyTable representation of the input DataFrame or Series.
+
+    Notes:
+    ------
+    - Multi-level column names are flattened (e.g., ('value', 'mean') → 'value_mean').
+    - Index values are retained and displayed as part of the table.
+    - Uses the `prettytable` package for tabular formatting.
+
+    Example:
+    --------
+    # Example with DataFrame
+    df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
+    display_as_pretty_table(df)
+
+    # Example with Series
+    series = pd.Series([10, 20, 30], name='values')
+    display_as_pretty_table(series)
+    """
+
+    # Validate input type
+    if not isinstance(input_dataframe, (pd.DataFrame, pd.Series)):
+        raise ValueError("Input must be a Pandas DataFrame or Series.")
+
+    # Make a copy of the input
+    df_or_series = input_dataframe.copy()
+
+    # If input is a Series, convert to DataFrame with default column names
+    if isinstance(df_or_series, pd.Series):
+        index_name = df_or_series.index.name or 'index'
+        series_name = df_or_series.name or 'value'
+        df_or_series = df_or_series.reset_index()
+        df_or_series.columns = [index_name, series_name]
+
+    # If DataFrame has a MultiIndex, reset the index
+    if isinstance(df_or_series.index, pd.MultiIndex):
+        df_or_series.reset_index(inplace=True)
+    else:
+        # Convert the index to a column if not already part of the DataFrame
+        df_or_series.reset_index(inplace=True)
+
+    # Handle multi-level column names
+    if isinstance(df_or_series.columns, pd.MultiIndex):
+        # Flatten multi-level column names into single-level
+        df_or_series.columns = [
+            '_'.join(map(str, col)).strip('_') for col in df_or_series.columns
+        ]
+
+    # Create a PrettyTable
+    table = PrettyTable()
+
+    # Set column headers
+    table.field_names = df_or_series.columns.tolist()
+
+    # Add rows to the PrettyTable
+    for row in df_or_series.itertuples(index=False):
+        table.add_row(row)
+
+    # Print the table
+    print(table)
+    
 
 def iteratively_remove_correlated_features(df, threshold=0.6):
    """
@@ -225,10 +429,10 @@ def iteratively_remove_correlated_features(df, threshold=0.6):
            log_data.append({
                "Feature1": feature_1,
                "Feature2": feature_2,
-               "Feature1_Variance": variance_1,
-               "Feature2_Variance": variance_2,
-               "Correlation": corr_matrix.loc[feature_1, feature_2],
-               "Dropping_Feature": to_drop,
+               "Feature1_Variance": np.round(variance_1,3),
+               "Feature2_Variance": np.round(variance_2,3),
+               "Correlation": np.round(corr_matrix.loc[feature_1, feature_2],3),
+               "Dropping": to_drop,
                "Iteration_Step": iteration,
                "Feature1_Correlated_With_Count":len(correlated_features_dict[feature_1]),
                "Feature2_Correlated_With_Count":len(correlated_features_dict[feature_2]),
@@ -252,8 +456,9 @@ def iteratively_remove_correlated_features(df, threshold=0.6):
 
    # Create a DataFrame from the log
    log_df = pd.DataFrame(log_data)
+   table(log_df[['Feature1','Feature2','Feature1_Variance','Feature2_Variance','Correlation','Dropping']]) 
 
-   return list(all_features_dropped), log_df
+   return list(all_features_dropped),log_df
 
 def iteratively_remove_correlated_features_with_target(df, target, threshold=0.6):
     """
@@ -313,10 +518,10 @@ def iteratively_remove_correlated_features_with_target(df, target, threshold=0.6
             log_data.append({
                 "Feature1": feature_1,
                 "Feature2": feature_2,
-                "Feature1_Target_Correlation": target_corr_1,
-                "Feature2_Target_Correlation": target_corr_2,
-                "Correlation_Between_Features": corr_matrix.loc[feature_1, feature_2],
-                "Dropping_Feature": to_drop,
+                "Feature1_Target": np.round(target_corr_1,3),
+                "Feature2_Target": np.round(target_corr_2,3),
+                "Correlation": np.round(corr_matrix.loc[feature_1, feature_2],3),
+                "Dropping": to_drop,
                 "Iteration_Step": iteration,
                 "Feature1_Correlated_With_Count": len(correlated_features_dict[feature_1]),
                 "Feature2_Correlated_With_Count": len(correlated_features_dict[feature_2]),
@@ -330,8 +535,9 @@ def iteratively_remove_correlated_features_with_target(df, target, threshold=0.6
 
     # Create a DataFrame from the log
     log_df = pd.DataFrame(log_data)
+    table(log_df[['Feature1','Feature2','Feature1_Target','Feature2_Target','Correlation','Dropping']]) 
 
-    return features_to_keep, list(all_features_dropped), log_df
+    return list(all_features_dropped), log_df
 
 def scale_data(data,method='standard',feature_range=(0,1)):
    if len(data.shape) ==1:
@@ -358,12 +564,6 @@ def get_combinations(param_dict):
    param_dicts = [dict(zip(keys,combination)) for combination in param_combinations]
    return param_dicts
 
-from sklearn.metrics import confusion_matrix,roc_curve,auc
-from sklearn.metrics import precision_score,recall_score,f1_score
-from sklearn.metrics import precision_recall_curve, roc_curve, auc
-import matplotlib.pyplot as plt 
-import seaborn as sns
-from functools import * 
 
 def optimal_nobins(data):
     """
@@ -384,8 +584,52 @@ def optimal_nobins(data):
 
 def analyse_feature(df,feat1,feat2,relation,bins=False):
     """
-    relation argument values : ['cat2cat','con2con','cat2con','con2cat']
-    bins values : integer,optimal,list of tuples 
+    Analyze the relationship between two features based on their data types.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        The input DataFrame containing the features to be analyzed.
+    feat1 : str
+        The name of the first feature.
+    feat2 : str
+        The name of the second feature.
+    relation : str
+        Specifies the relationship between features. Supported values:
+        - 'cat2cat': Categorical to Categorical
+        - 'con2con': Continuous to Continuous
+        - 'cat2con': Categorical to Continuous
+        - 'con2cat': Continuous to Categorical
+    bins : int, str, list, or bool, optional (default=False)
+        Determines binning strategy for continuous features:
+        - int: Number of bins.
+        - str: 'optimal' to use the optimal binning method (`optimal_nobins`).
+        - list: List of tuples defining custom bins.
+        - False: No binning.
+
+    Returns:
+    --------
+    dict or pd.DataFrame
+        - For 'cat2cat' and 'con2cat': Returns a dictionary with keys:
+          - 'counts': Absolute counts of occurrences.
+          - 'total_ratio': Percentage of total for each bin.
+          - 'bin_ratio': Percentage distribution within each bin.
+        - For 'con2con' and 'cat2con': Returns a DataFrame summarizing 
+          statistical measures for each group/bin.
+
+    Notes:
+    ------
+    - Use `optimal_nobins` for automatic bin size calculation.
+    - Handles missing values by grouping them appropriately during analysis.
+    - Ensure features are correctly categorized before using the function.
+
+    Examples:
+    ---------
+    # Example 1: Categorical to Continuous
+    analyse_feature(df, 'gender', 'income', relation='cat2con')
+
+    # Example 2: Continuous to Categorical
+    analyse_feature(df, 'age', 'purchase', relation='con2cat', bins=5)
     """
     if relation.lower() in ['cat2cat','con2cat']:
         print('feature analysis output is a dictionary with keys counts,total_ratio,bin_ratio')
@@ -416,7 +660,12 @@ def analyse_feature(df,feat1,feat2,relation,bins=False):
                 output3[j] = output3[[j]].applymap(lambda x: "{0:.2f}%".format(x))
             output_dict['bin_ratio'] = output3 
 
-            return output_dict 
+            print('Counts') 
+            table(output_dict['counts'])
+            print('Total Ratio') 
+            table(output_dict['total_ratio'])
+            print('Binwise Ratio') 
+            table(output_dict['bin_ratio'])
             
         elif relation.lower()=='con2con':
             # creating bins for feature a if not given
@@ -430,16 +679,27 @@ def analyse_feature(df,feat1,feat2,relation,bins=False):
                 temp[feat1+'_bins'] = pd.cut(temp[feat1],bins=bins,duplicates = 'drop')
 
             output1 = temp.groupby(feat1+'_bins').describe()[feat2]
+            output1['25%'] = np.round(output1['25%'],3)
+            output1['50%'] = np.round(output1['50%'],3)
+            output1['75%'] = np.round(output1['75%'],3)
+            output1['mean'] = np.round(output1['mean'],3)
+            output1['std'] = np.round(output1['std'],3)
             output1['ratio'] = output1['count']/output1['count'].sum()
             output1['ratio'] = output1[['ratio']].applymap(lambda x: "{0:.2f}%".format(x*100))
             
-            return output1
+            table(output1) 
         
         elif relation.lower()=='cat2con':
             output1 = temp.groupby(feat1).describe()[feat2]
+            output1['25%'] = np.round(output1['25%'],3)
+            output1['50%'] = np.round(output1['50%'],3)
+            output1['75%'] = np.round(output1['75%'],3)
+            output1['mean'] = np.round(output1['mean'],3)
+            output1['std'] = np.round(output1['std'],3)
+            
             output1['ratio'] = output1['count']/output1['count'].sum()
             output1['ratio'] = output1[['ratio']].applymap(lambda x: "{0:.2f}%".format(x*100))
-            return output1
+            table(output1) 
             
         elif relation.lower()=='con2cat':
             output_dict = dict()
@@ -475,8 +735,14 @@ def analyse_feature(df,feat1,feat2,relation,bins=False):
             for j in output3.columns:
                 output3[j] = output3[[j]].applymap(lambda x: "{0:.2f}%".format(x))
             output_dict['bin_ratio'] = output3
+
+            print('Counts') 
+            table(output_dict['counts'])
+            print('Total Ratio') 
+            table(output_dict['total_ratio'])
+            print('Binwise Ratio') 
+            table(output_dict['bin_ratio'])
             
-            return output_dict 
     except Exception as e:
         print('Exception  : ',e)
 
@@ -506,11 +772,12 @@ def woe_iv(data,feature,target,events,bins,continuous):
     target_labels = temp[target].value_counts().index 
     temp[events] = np.where(temp[target]==events,1,0)
     temp = temp.groupby(feature).agg({events:['sum','count']})
-    temp['%events'] = temp[events]['sum']/temp[events]['sum'].sum()
+    temp['%events'] = np.round(temp[events]['sum']/temp[events]['sum'].sum(),3)
     temp['#nonevents'] = temp[events]['count']-temp[events]['sum']
-    temp['%nonevents'] = temp['#nonevents']/temp['#nonevents'].sum()
-    temp['woe'] = np.log((temp['%events']) / (temp['%nonevents'] ))
-    temp['IV'] = temp['woe']* (temp['%events'] - temp['%nonevents'])
+    temp['%nonevents'] = np.round(temp['#nonevents']/temp['#nonevents'].sum(),3)
+    temp['woe'] = np.round(np.log((temp['%events']) / (temp['%nonevents'])),3)
+    temp['IV'] = np.round(temp['woe']* (temp['%events'] - temp['%nonevents']),3)
+    table(temp) 
     return temp
 
 def thresh_analysis(model,x,y):
@@ -783,210 +1050,640 @@ def calculate_residual_drift(model,x_new,y_new,x_old,y_old):
     output.loc['observed_residual_shift'] = [psi,psi_alert_label(psi)]
     return output
 
-def chi_selection(df,target_name):
+def chi_selection(data, target_name):
     """
-    chi-square test of independence.
-    smaller p value tells us to reject the null 
-    null hypothesis : two feature are independent
+    Perform Chi-Square test of independence to evaluate the relationship between features and the target variable.
+    
+    The function computes the Chi-Square statistic and the p-value for each feature to help with feature selection in 
+    machine learning models. A lower p-value indicates a stronger relationship between the feature and the target.
+    
+    This test is used to identify if there is an association between categorical features and the target, 
+    and it helps in determining the most relevant features for further analysis.
+    
+    Parameters:
+    -----------
+    data : pandas DataFrame
+        The dataset containing the features and the target variable.
+    
+    target_name : str
+        The name of the target variable (column).
+    
+    Returns:
+    --------
+    pandas DataFrame
+        A DataFrame containing the Chi-Square statistics and p-values for each feature, sorted by the Chi-Square statistic.
+        The DataFrame has the following columns:
+        - `p_value`: The p-value of the Chi-Square test.
+        - `chi_square_stats`: The Chi-Square statistic.
+    
+    Notes:
+    ------
+    - The function handles both categorical and continuous features.
+    - Continuous features are binned into categories before applying the Chi-Square test.
+    - The Chi-Square statistic measures how much the observed values differ from the expected values under the null hypothesis.
+    - Smaller p-values (usually below 0.05) suggest that the feature is **not independent** of the target, 
+    indicating a potential for being important in predicting the target.
+    
+    Example:
+    --------
+    # Example usage
+    result = chi_selection(df, 'Target')
+    print(result)
     """
+    
+    # Make a deep copy of the data
+    cdata = data.copy()
+    
+    # Import necessary module
     from scipy import stats
-    temp_df = df.drop(target_name,axis=1)
-    temp_y = df[target_name]
+    
+    # Initialize variables for the target and feature set
+    temp_df = cdata.drop(target_name, axis=1)
+    temp_y = cdata[target_name]
+    
+    # Initialize an empty DataFrame to store processed features
     temp_new = pd.DataFrame()
+    
+    # Try to identify categorical columns, handle exceptions if any
     try:
-        object_cols = df.describe(include='O').T.index.tolist()
-    except:
+        object_cols = cdata.describe(include='O').T.index.tolist()
+    except Exception as e:
+        print(f"Error in identifying categorical columns: {e}")
         object_cols = []
     
-    cols_categorized = [i for i in df.columns if i not in object_cols+[target_name]]
+    # Identify non-categorical columns (excluding the target column)
+    cols_categorized = [i for i in cdata.columns if i not in object_cols + [target_name]]
+    
+    # Handle continuous features by filling missing values and binning
     for j in cols_categorized:
-        nob = optimal_nobins(temp_df[j])['iqr']
-        temp_new[j+'_bin'] = pd.qcut(temp_df[j],q = nob,duplicates='drop')
-    X,y = temp_new,temp_y
-    p_values = [stats.chi2_contingency(pd.crosstab(X[i],y))[1] for i in X.columns]
-    out = pd.DataFrame({'feature':X.columns,'p_value':p_values})
-    out = out.sort_values(by = 'p_value',ascending=True).set_index('feature')
+        try:
+            mode_j = temp_df[j].mode().values[0]
+            temp_df[j].fillna(mode_j, inplace=True)
+            nob = optimal_nobins(temp_df[j])['iqr']
+            temp_new[j + '_bin'] = pd.qcut(temp_df[j], q=nob, duplicates='drop')
+        except Exception as e:
+            print(f"Error processing feature {j}: {e}")
+            cols_categorized.remove(j)
+    
+    # Fill remaining missing values with 0
+    try:
+        temp_df.fillna(0, inplace=True)
+    except Exception as e:
+        print(f"Error while filling missing values: {e}")
+    
+    # Separate features and target variable
+    X, y = temp_new, temp_y
+    
+    # Initialize lists to store p-values and chi-square statistics
+    p_values = []
+    chi_square_stats = []
+    
+    # Calculate p-values and Chi-Square statistics for each feature
+    for feature in X.columns:
+        try:
+            chi2_stat, p_val, _, _ = stats.chi2_contingency(pd.crosstab(X[feature], y))
+            p_values.append(p_val)
+            chi_square_stats.append(chi2_stat)
+        except Exception as e:
+            print(f"Error calculating Chi-Square for feature {feature}: {e}")
+            p_values.append(None)
+            chi_square_stats.append(None)
+    
+    # Create the output DataFrame with p-values and Chi-Square statistics
+    out = pd.DataFrame({
+        'feature': X.columns,
+        'p_value': p_values,
+        'chi_square_stats': chi_square_stats
+    })
+    
+    # Sort the output DataFrame by Chi-Square statistics and set feature as index
+    out = out.sort_values(by='chi_square_stats', ascending=True).set_index('feature')
+    
     return out
 
-def entropy(values,probability=False):
+
+def entropy(values, probability=False):
+    """
+    Calculate the Shannon entropy of a dataset or probability distribution.
+
+    Entropy is a measure of the uncertainty or disorder in a dataset. It quantifies
+    the amount of information required to describe the state of the system. In machine
+    learning, entropy is commonly used for feature selection, information gain calculation,
+    and decision tree splitting. Higher entropy indicates greater uncertainty or disorder.
+
+    This function can compute entropy in two ways:
+    1. When `probability=False`, it computes entropy based on categorical data.
+       The data should be a list or array of categorical values.
+    2. When `probability=True`, it computes entropy based on a given probability distribution.
+       The input should be a list or array of probabilities, where the values must sum to 1.
+
+    Parameters:
+    -----------
+    values : array-like
+        The input values representing categorical data or probabilities.
+        If `probability=False`, `values` should be a list or array of categorical data.
+        If `probability=True`, `values` should be a list of probabilities that sum to 1.
+    
+    probability : bool, optional, default=False
+        If True, the input `values` represents a probability distribution (should sum to 1).
+        If False, the input `values` represents categorical data, and the function computes
+        entropy based on the relative frequencies of the categories.
+
+    Returns:
+    --------
+    float
+        The entropy value of the dataset or probability distribution.
+        The value ranges from 0 (no uncertainty) to log2(n) (maximum uncertainty),
+        where `n` is the number of distinct categories.
+
+    Raises:
+    -------
+    ValueError
+        If `probability=True` and the values do not sum to 1 or if any value is 
+        outside the range [0, 1].
+    
+    Notes:
+    ------
+    - When `probability=False`, this function calculates entropy from categorical data 
+      using the frequencies of the unique values.
+    - Entropy is maximized when all outcomes are equally likely and minimized when one 
+      outcome is certain (i.e., all values are the same).
+    - If `probability=True`, this function uses the formula for entropy from information theory.
+    - A higher entropy value indicates more uncertainty or disorder in the dataset.
+
+    Example:
+    --------
+    # Example 1: Entropy of categorical data
+    values = [1, 1, 2, 2, 2, 3, 3, 3, 3]
+    print(entropy(values))  # Output: 1.4591479170272448
+    
+    # Example 2: Entropy of a probability distribution
+    prob_values = [0.2, 0.3, 0.5]
+    print(entropy(prob_values, probability=True))  # Output: 1.3709505944546687
+    """
+    
     if probability:
-        return -np.sum(values*np.log2(values))
+        # Ensure that the values are valid probabilities (sum to 1 and between 0 and 1)
+        if not np.all(values >= 0) or not np.isclose(np.sum(values), 1):
+            raise ValueError("Input values must be valid probabilities that sum to 1.")
+        
+        # Handle log(0) by using np.where to replace 0s with a small number (or just zero contribution)
+        return -np.sum(values * np.log2(values + np.finfo(float).eps))  # Adding epsilon to avoid log(0)
     else:
+        # Calculate entropy from raw counts (discrete values)
         unique, counts = np.unique(values, return_counts=True)
         probs = counts / len(values)
-        return -np.sum(probs * np.log2(probs))
+        return -np.sum(probs * np.log2(probs + np.finfo(float).eps))  # Avoid log(0) by adding epsilon
+
 
 def compute_probabilities(labels):
+    """
+    Compute the probability distribution of unique labels in the input data.
+    
+    This function calculates the probability of each unique label in the input array 
+    by counting its occurrences and dividing by the total number of labels. It returns 
+    a dictionary where the keys are the unique labels and the values are their 
+    corresponding probabilities.
+
+    Parameters:
+    -----------
+    labels : array-like
+        A sequence (list, numpy array, pandas Series) containing categorical labels.
+    
+    Returns:
+    --------
+    dict
+        A dictionary where keys are the unique labels and values are their corresponding probabilities.
+
+    Raises:
+    -------
+    ValueError: 
+        If `labels` is not an array-like structure or is empty.
+    
+    Example:
+    --------
+    labels = ['A', 'B', 'A', 'A', 'B', 'C']
+    result = compute_probabilities(labels)
+    print(result)  # Output: {'A': 0.5, 'B': 0.333, 'C': 0.16666}
+    """
+    
+    # Check if input is valid (array-like structure)
+    if not hasattr(labels, '__iter__'):
+        raise ValueError("Input should be an array-like structure (e.g., list, numpy array, or pandas Series).")
+    
+    # Check if the input is empty
+    if len(labels) == 0:
+        raise ValueError("Input array cannot be empty.")
+    
+    # Get unique labels and their respective counts
     unique_labels, counts = np.unique(labels, return_counts=True)
+    
+    # Calculate probabilities
     probabilities = counts / np.sum(counts)
+    
+    # Map each unique label to its probability
     out = dict(zip(unique_labels, probabilities))
+    
     return out
 
-def cross_entropy(p, q, probabilities=False,verbose = True):
+
+def cross_entropy(p, q, probabilities=False, verbose=True):
     """
-    p * log(1/q) 
+    Compute the cross-entropy between two distributions or sets of labels.
+
+    Cross-entropy is a measure of the difference between two probability distributions.
+    It quantifies the "distance" between the true distribution `p` and the estimated distribution `q`.
+    
+    If the inputs `p` and `q` are raw labels (not probabilities), the function first computes the
+    probabilities of each label and then calculates the cross-entropy. If `p` and `q` are already 
+    probabilities, the function directly computes the cross-entropy.
+
+    Parameters:
+    -----------
+    p : array-like
+        The first distribution (labels or probabilities).
+    
+    q : array-like
+        The second distribution (labels or probabilities).
+    
+    probabilities : bool, default=False
+        If False, `p` and `q` are treated as raw labels, and their probabilities will be computed.
+        If True, `p` and `q` are treated as probability distributions.
+    
+    verbose : bool, default=True
+        If True, prints intermediate steps (probabilities, final labels, etc.) for debugging purposes.
+    
+    Returns:
+    --------
+    float
+        The cross-entropy value between the two distributions or label sets.
+    
+    Example:
+    --------
+    p = ['A', 'A', 'B', 'B', 'B']
+    q = ['A', 'A', 'A', 'B', 'C']
+    result = cross_entropy(p, q)
+    print(result)  # Output: a scalar value representing the cross-entropy
     """
+    
     if not probabilities:
         labels_p = list(np.unique(p))
         labels_q = list(np.unique(q))
-    
-        if len(labels_q)>len(labels_p):
-            final_labels = labels_q
-        else:
-            final_labels = labels_p
+        
+        # Determine the union of labels from both p and q
+        final_labels = labels_q if len(labels_q) > len(labels_p) else labels_p
+        
+        # Compute probabilities for p and q
         p = compute_probabilities(p)
         q = compute_probabilities(q)
-        for j in final_labels:
-            if j not in p.keys():
-                p[j] = 0 
-            if j not in q.keys():
-                q[j] = 0
+        
+        # Handle missing labels
+        for label in final_labels:
+            if label not in p:
+                p[label] = 0
+            if label not in q:
+                q[label] = 0
+        
         if verbose:
-            print(p)
-            print(q)
-            print(final_labels)
-            
+            print(f"Computed probabilities for p: {p}")
+            print(f"Computed probabilities for q: {q}")
+            print(f"Final labels: {final_labels}")
+        
+        # Compute cross-entropy
         cross_entropy_measure = []
-        for labs in final_labels:
-            if q[labs]!=0:
-                cross_entropy_measure.append(p[labs]*np.log2(1/q[labs]))
+        for label in final_labels:
+            if q[label] != 0:
+                cross_entropy_measure.append(p[label] * np.log2(1 / q[label]))
             else:
                 cross_entropy_measure.append(0)
+    
     else:
+        # Directly compute cross-entropy if probabilities are given
         p = np.array(p)
         q = np.array(q)
         
-        cross_entropy_measure = p * np.log2(1/q)
-        cross_entropy_measure[np.isinf(cross_entropy_measure)] = 0
-        
+        cross_entropy_measure = p * np.log2(1 / q)
+        cross_entropy_measure[np.isinf(cross_entropy_measure)] = 0  # Handle log(0)
+    
     if verbose:
-        print(cross_entropy_measure)
-        
+        print(f"Cross-entropy measure: {cross_entropy_measure}")
+    
     return np.sum(cross_entropy_measure)
 
+
 def joint_entropy(x, y):
+    """
+    Compute the joint entropy between two distributions or sets of labels.
+    
+    Joint entropy measures the amount of uncertainty or information shared between two variables.
+    It quantifies how much uncertainty remains when we observe both variables simultaneously.
+
+    Parameters:
+    -----------
+    x : array-like
+        The first distribution (labels or values) representing one random variable.
+    
+    y : array-like
+        The second distribution (labels or values) representing another random variable.
+    
+    Returns:
+    --------
+    float
+        The joint entropy value between the two variables.
+
+    Example:
+    --------
+    x = ['A', 'A', 'B', 'B', 'C']
+    y = ['X', 'Y', 'Y', 'X', 'Z']
+    result = joint_entropy(x, y)
+    print(result)  # Output: a scalar value representing the joint entropy
+    """
+    
+    # Get unique values and counts for x and y
     x_values, x_counts = np.unique(x, return_counts=True)
     y_values, y_counts = np.unique(y, return_counts=True)
+
+    # Create joint frequency matrix
     joint_counts = np.zeros((len(x_values), len(y_values)), dtype=int)
     for i in range(len(x)):
         x_idx = np.where(x_values == x[i])[0][0]
         y_idx = np.where(y_values == y[i])[0][0]
         joint_counts[x_idx, y_idx] += 1
+    
+    # Calculate joint probabilities
     joint_probs = joint_counts / len(x)
+
+    # Compute joint entropy, handling zero probabilities
     return -np.sum(joint_probs * np.log2(joint_probs + (joint_probs == 0)))
 
-
-def mutual_information_value(x,y,verbose=False):
+def mutual_information_value(x, y, verbose=False):
     """
-    p(x,y) * log( p(x,y)/ (p(x)*q(x)))
+    Compute the Mutual Information (MI) between two variables (features).
+    
+    Mutual Information measures the amount of information that knowing one variable provides
+    about the other. It is based on the concept of entropy and the relationship between the
+    joint distribution of the variables and their marginal distributions.
+    
+    Formula:
+    --------
+    MI(x, y) = sum(p(x, y) * log2(p(x, y) / (p(x) * p(y)))
+    
+    Parameters:
+    -----------
+    x : array-like
+        The first variable (feature).
+    
+    y : array-like
+        The second variable (target).
+    
+    verbose : bool, optional (default=False)
+        If True, intermediate steps and debug information are printed.
+    
+    Returns:
+    --------
+    float
+        The computed Mutual Information between the two variables.
+    
+    Example:
+    --------
+    x = [1, 2, 1, 2, 1]
+    y = [1, 1, 2, 2, 1]
+    result = mutual_information_value(x, y)
+    print(result)  # Output: A scalar value representing the mutual information.
     """
+    
+    # Ensure that x and y are Pandas Series
     try:
-        x.name='feature'
-        y.name='target'
+        x.name = 'feature'
+        y.name = 'target'
     except:
         pass
-    if type(y)!=pd.core.series.Series:
-        y = pd.Series(y,name='target')
+    
+    if type(y) != pd.core.series.Series:
+        y = pd.Series(y, name='target')
         
-    if type(x)!=pd.core.series.Series:
-        x = pd.Series(x,name='feature')
-    output = pd.crosstab(x,y,margins=True,margins_name='total')
+    if type(x) != pd.core.series.Series:
+        x = pd.Series(x, name='feature')
+    
+    # Create a contingency table (cross-tabulation)
+    output = pd.crosstab(x, y, margins=True, margins_name='total')
     if verbose:
         print(output)
     
-    output /=len(x)
+    # Normalize by the total number of observations
+    output /= len(x)
     if verbose:
         print(output)
     
-    def compute_mi(join,marginals):
-        return join*np.log2((join/reduce(lambda x,y:x*y,marginals)))
+    # Function to compute Mutual Information for a given pair of values
+    def compute_mi(join, marginals):
+        return join * np.log2(join / reduce(lambda x, y: x * y, marginals))
     
+    # Initialize list to store MI values
     total_mi = []
-    rows = len(output.index)-1
-    cols = len(output.columns)-1
     
+    # Extract the number of rows and columns (excluding the 'total' margin)
+    rows = len(output.index) - 1
+    cols = len(output.columns) - 1
+    
+    # Iterate through the contingency table (excluding margins) to calculate MI
     for r in range(rows):
         for c in range(cols):
-            value = output.iloc[r,c]
-            # print(rows-1,c)
-            marg_a,marg_b = output.iloc[r,cols],output.iloc[rows,c]
+            value = output.iloc[r, c]
+            marg_a, marg_b = output.iloc[r, cols], output.iloc[rows, c]
+            
             if verbose:
-                print(value,[marg_a,marg_b],[r,c])
-            if value!=0:
-                mi_value = compute_mi(value,[marg_a,marg_b])
+                print(value, [marg_a, marg_b], [r, c])
+            
+            if value != 0:
+                mi_value = compute_mi(value, [marg_a, marg_b])
             else:
-                mi_value=0
-            if mi_value==np.inf:
-                mi_value=0
+                mi_value = 0
+            
+            # Handle infinity values (e.g., log(0)) by setting them to zero
+            if mi_value == np.inf:
+                mi_value = 0
+            
             total_mi.append(mi_value)
+    
     if verbose:
         print(total_mi)
+    
+    # Return the total Mutual Information
     return np.sum(total_mi)
 
-def mutual_information_frame(df,target_name):
+
+def mutual_information_frame(df, target_name):
     """
-    applying mutual_information_value function on all the columns in a df
+    Calculate Mutual Information (MI) scores for all features in a DataFrame relative to a target variable.
+    
+    The function discretizes numerical features into optimal bins before computing MI scores.
+    Non-numerical (categorical) columns are ignored.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Input DataFrame containing features and the target variable.
+    
+    target_name : str
+        Name of the target column in the DataFrame.
+    
+    Returns:
+    --------
+    pd.DataFrame
+        A DataFrame with two columns:
+        - 'features': Names of the feature columns.
+        - 'mi_score': Corresponding mutual information scores with the target variable.
+    
+    Notes:
+    ------
+    - Numerical columns are discretized using an optimal binning strategy.
+    - Categorical columns and the target column are excluded from the computation.
+    
+    Example:
+    --------
+    result = mutual_information_frame(data, target_name='Target')
+    print(result)
     """
-    from scipy import stats
-    temp_df = df.drop(target_name,axis=1)
-    temp_y = df[target_name]
+
+    # Copy input DataFrame to avoid modification
+    cdata = df.copy()
+    
+    # Separate features and target
+    temp_df = cdata.drop(target_name, axis=1)
+    temp_y = cdata[target_name]
     temp_new = pd.DataFrame()
+    
+    # Identify categorical columns
     try:
-        object_cols = df.describe(include='O').T.index.tolist()
-    except:
+        object_cols = cdata.describe(include='O').T.index.tolist()
+    except Exception:
         object_cols = []
     
-    cols_categorized = [i for i in df.columns if i not in object_cols+[target_name]]
+    # Identify numerical columns
+    cols_categorized = [i for i in cdata.columns if i not in object_cols + [target_name]]
+    
+    # Bin numerical columns
     for j in cols_categorized:
-        nob = optimal_nobins(temp_df[j])['iqr']
-        temp_new[j+'_bin'] = pd.qcut(temp_df[j],q = nob,duplicates='drop')
-    X,y = temp_new,temp_y
-    out_dict = {'features':X.columns,'mi_score':[]}
+        try:
+            # Compute optimal number of bins and discretize
+            nob = optimal_nobins(temp_df[j])['iqr']
+            temp_new[j + '_bin'] = pd.qcut(temp_df[j], q=nob, duplicates='drop')
+        except Exception as e:
+            print(f"Error binning column '{j}': {e}")
+    
+    # Prepare features (X) and target (y)
+    X, y = temp_new, temp_y
+    
+    # Initialize output dictionary
+    out_dict = {'features': X.columns, 'mi_score': []}
+    
+    # Compute MI for each feature
     for i in X.columns:
-        out_dict['mi_score'].append(mutual_information_value(X[i],y))
+        try:
+            mi_score = mutual_information_value(X[i], y)
+            out_dict['mi_score'].append(mi_score)
+        except Exception as e:
+            print(f"Error calculating MI for feature '{i}': {e}")
+            out_dict['mi_score'].append(None)
+    
+    # Return results as a DataFrame
     return pd.DataFrame(out_dict)
 
 
-def kl_divergence(p, q, probabilities=False,verbose = True):
+
+def kl_divergence(p, q, probabilities=False, verbose=True):
     """
-    kl(p|q) = p(x) * log(p(x)/q(x))
+    Compute the Kullback-Leibler (KL) divergence between two distributions.
+
+    KL divergence measures how one probability distribution (p) diverges 
+    from a second reference probability distribution (q).
+
+    Parameters:
+    -----------
+    p : array-like
+        The first distribution or set of samples.
+
+    q : array-like
+        The second distribution or set of samples.
+
+    probabilities : bool, optional (default=False)
+        If True, `p` and `q` are treated as probabilities.
+        If False, `p` and `q` are assumed to be samples and will be converted 
+        into probability distributions.
+
+    verbose : bool, optional (default=True)
+        If True, prints intermediate steps and debugging information.
+
+    Returns:
+    --------
+    float
+        The KL divergence value.
+
+    Notes:
+    ------
+    - KL divergence is not symmetric: KL(p || q) != KL(q || p).
+    - The function handles zero probabilities by assigning zero contribution 
+      to divergence in those cases.
+
+    Example:
+    --------
+    # Example with probability inputs
+    p = [0.4, 0.6]
+    q = [0.5, 0.5]
+    kl_divergence(p, q, probabilities=True)
+
+    # Example with sample inputs
+    p = [1, 2, 2, 3]
+    q = [1, 1, 2, 3, 3]
+    kl_divergence(p, q, probabilities=False)
     """
+    import numpy as np
+
     if not probabilities:
+        # Convert samples to probabilities
         labels_p = list(np.unique(p))
         labels_q = list(np.unique(q))
-    
-        if len(labels_q)>len(labels_p):
-            final_labels = labels_q
-        else:
-            final_labels = labels_p
+
+        # Combine labels
+        final_labels = list(set(labels_p) | set(labels_q))
+        
+        # Compute probabilities
         p = compute_probabilities(p)
         q = compute_probabilities(q)
-        for j in final_labels:
-            if j not in p.keys():
-                p[j] = 0 
-            if j not in q.keys():
-                q[j] = 0
+
+        # Ensure all labels are in both distributions
+        for label in final_labels:
+            p.setdefault(label, 0)
+            q.setdefault(label, 0)
+
         if verbose:
-            print(p)
-            print(q)
-            print(final_labels)
+            print(f"Probabilities (p): {p}")
+            print(f"Probabilities (q): {q}")
+            print(f"Labels: {final_labels}")
+
+        # Compute KL divergence
         kl_divergence_measure = []
-        for labs in final_labels:
-            if q[labs]!=0:
-                kl_divergence_measure.append(p[labs]*np.log2(p[labs]/q[labs]))
+        for label in final_labels:
+            if q[label] != 0:
+                kl_divergence_measure.append(p[label] * np.log2(p[label] / q[label]))
             else:
                 kl_divergence_measure.append(0)
+
     else:
+        # Assume p and q are probability arrays
         p = np.array(p)
         q = np.array(q)
-        
+
+        # Calculate KL divergence
         kl_divergence_measure = p * np.log2(p / q)
-        kl_divergence_measure[np.isinf(kl_divergence_measure)] = 0
-        
+        kl_divergence_measure[np.isinf(kl_divergence_measure)] = 0  # Handle division by zero
+
     if verbose:
-        print(kl_divergence_measure)
-        
+        print(f"KL Divergence Components: {kl_divergence_measure}")
+
     return np.sum(kl_divergence_measure)
+
 
 def plot_evaluation_curves(y_true, y_scores, title_pr='Precision-Recall Curve', title_roc='ROC Curve'):
     # Precision-Recall Curve
@@ -1018,37 +1715,6 @@ def plot_evaluation_curves(y_true, y_scores, title_pr='Precision-Recall Curve', 
     plt.tight_layout()
     plt.show()
 
-def table(input_dataframe):
-    """
-    This function takes a Pandas DataFrame or Series and displays it as a PrettyTable.
-    It also supports multi-index DataFrames and groupby operations with aggregated columns.
-    """
-    from prettytable import PrettyTable
-    # make a deep copy 
-    df_or_series = input_dataframe.copy()
-    # Handle if input is a Pandas Series
-    if isinstance(df_or_series, pd.Series):
-        series_name = df_or_series.index.name
-        df_or_series = df_or_series.to_frame().reset_index()
-        # Use the Series name as the column name for the values column
-        df_or_series.columns = [series_name, 'value']  # Dynamic column name
 
-    # Handle multi-index DataFrame from groupby aggregation
-    elif isinstance(df_or_series, pd.DataFrame):
-        if isinstance(df_or_series.columns, pd.MultiIndex):
-            # Flatten multi-level columns
-            df_or_series.columns = ['_'.join(col) if isinstance(col, tuple) else col for col in df_or_series.columns]
-            df_or_series.reset_index(inplace=True)
 
-    # Create PrettyTable instance
-    table = PrettyTable()
 
-    # Set the column names (field names) to match the DataFrame columns
-    table.field_names = df_or_series.columns.tolist()
-
-    # Add rows from the DataFrame or Series to the PrettyTable
-    for row in df_or_series.itertuples(index=False):
-        table.add_row(row)
-
-    # Print the table
-    print(table)
