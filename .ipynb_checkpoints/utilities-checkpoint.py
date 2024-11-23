@@ -1022,42 +1022,33 @@ def table(input_dataframe):
     """
     This function takes a Pandas DataFrame or Series and displays it as a PrettyTable.
     It also supports multi-index DataFrames and groupby operations with aggregated columns.
-    Index values are retained and displayed in the table.
     """
     from prettytable import PrettyTable
-    import pandas as pd
-
-    # Make a deep copy of the input DataFrame or Series
+    # make a deep copy 
     df_or_series = input_dataframe.copy()
-
-    # If the input is a Pandas Series
+    # Handle if input is a Pandas Series
     if isinstance(df_or_series, pd.Series):
-        index_name = df_or_series.index.name or 'index'  # Default to 'index' if index has no name
-        series_name = df_or_series.name or 'value'  # Default to 'value' if Series has no name
-        df_or_series = df_or_series.reset_index()  # Reset the index
-        df_or_series.columns = [index_name, series_name]  # Use dynamic column names
+        series_name = df_or_series.index.name
+        df_or_series = df_or_series.to_frame().reset_index()
+        # Use the Series name as the column name for the values column
+        df_or_series.columns = [series_name, 'value']  # Dynamic column name
 
-    # If the input is a DataFrame
+    # Handle multi-index DataFrame from groupby aggregation
     elif isinstance(df_or_series, pd.DataFrame):
-        # If the DataFrame has a multi-index
-        if isinstance(df_or_series.index, pd.MultiIndex):
-            df_or_series.reset_index(inplace=True)
-        else:
-            # Convert the index to a column if not already part of the DataFrame
+        if isinstance(df_or_series.columns, pd.MultiIndex):
+            # Flatten multi-level columns
+            df_or_series.columns = ['_'.join(col) if isinstance(col, tuple) else col for col in df_or_series.columns]
             df_or_series.reset_index(inplace=True)
 
-    # Create a PrettyTable instance
+    # Create PrettyTable instance
     table = PrettyTable()
 
     # Set the column names (field names) to match the DataFrame columns
     table.field_names = df_or_series.columns.tolist()
 
-    # Add rows from the DataFrame to the PrettyTable
+    # Add rows from the DataFrame or Series to the PrettyTable
     for row in df_or_series.itertuples(index=False):
         table.add_row(row)
 
-    # Print the PrettyTable
+    # Print the table
     print(table)
-
-
-    
