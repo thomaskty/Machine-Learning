@@ -31,19 +31,12 @@ from prettytable import PrettyTable
 def get_current_time_ist():
     """
     Get the current time in IST (Indian Standard Time) in a compact string format.
-
     The function retrieves the current UTC time, converts it to IST, and formats it into
     a compact string by removing special characters like `:` and `-`.
 
     Returns:
     --------
-    str:
-        The current IST time formatted as `YYYYMMDDhhmmssAM/PM`.
-
-    Example:
-    --------
-    >>> get_current_time_ist()
-    '20241124024230PM'
+    str:The current IST time formatted as `YYYYMMDDhhmmssAM/PM`.
     """
     try:
         # Define the IST timezone
@@ -95,8 +88,7 @@ def get_yyyymm(dt):
 
     Parameters:
     -----------
-    dt : datetime
-        The input date.
+    dt : datetime : The input date.
 
     Returns:
     --------
@@ -119,15 +111,12 @@ def get_previous_months(date_str, n):
 
     Parameters:
     -----------
-    date_str : str
-        The input date in 'YYYY-MM-DD' format.
-    n : int
-        Number of previous months to compute.
+    date_str : str : The input date in 'YYYY-MM-DD' format.
+    n : int : Number of previous months to compute.
 
     Returns:
     --------
-    tuple
-        A tuple of strings representing the last days of the previous `n` months in 'YYYY-MM-DD' format.
+    tuple : A tuple of strings representing the last days of the previous `n` months in 'YYYY-MM-DD' format.
     """
     date = datetime.strptime(date_str, '%Y-%m-%d')  # Parse the input string into a datetime object
     end_dates = []
@@ -144,15 +133,12 @@ def lag_n(input_date, n=-1):
 
     Parameters:
     -----------
-    input_date : datetime
-        The reference date.
-    n : int, optional
-        The number of months to lag. Negative values move backward. (Default: -1)
+    input_date : datetime : The reference date.
+    n : int, optional : The number of months to lag. Negative values move backward. (Default: -1)
 
     Returns:
     --------
-    datetime
-        The last day of the lagged month.
+    datetime : The last day of the lagged month.
     """
     lagged_date = input_date + dateutil.relativedelta.relativedelta(months=n)  # Compute the lagged date
     return last_day(lagged_date)  # Get the last day of that month
@@ -161,23 +147,18 @@ def lag_n(input_date, n=-1):
 def show_dateinfo():
     """
     Display current and previous month's date-related information.
-
     This function calculates and prints the following details:
     - Current date and the date of the previous month (-1 month lag).
     - Current and previous month's names.
     - Current and previous year's values.
     - Current and previous month's representations in "mmyyyy" and "yyyymm" formats.
-
     Assumptions:
     - The helper functions `lag_n(date, n)` and `get_yyyymm(date)` are pre-defined:
       - `lag_n(date, n)`: Adjusts the given `date` by `n` months.
       - `get_yyyymm(date)`: Returns two formatted strings: "mmyyyy" and "yyyymm" for the given `date`.
-
     Returns:
     --------
-    None
-        Outputs the date-related information directly to the console.
-
+    None: Outputs the date-related information directly to the console.
     """
     try:
         # Current date and previous month's date
@@ -219,22 +200,17 @@ def show_dateinfo():
 def trend(x):
     """
     Compute the normalized trend score of a sequence.
-
     The trend score measures the relative ordering of elements in a sequence.
     A positive score indicates an increasing trend, 
     while a negative score indicates a decreasing trend.
 
     Parameters:
     -----------
-    x : array-like
-        A sequence of numeric values.
+    x : array-like : A sequence of numeric values.
 
-    Returns:
-    --------
-    float
+    Returns:float
         The normalized trend score, ranging from -1 (strictly decreasing)
         to 1 (strictly increasing). Returns 0 for a single-element sequence.
-
     Notes:
     ------
     - The computation involves counting the number of elements greater than, 
@@ -287,26 +263,9 @@ def table(input_dataframe):
     input_dataframe : pd.DataFrame or pd.Series
         The Pandas object to be displayed as a PrettyTable.
 
-    Returns:
+    Returns: None 
     --------
-    None
-        Prints the PrettyTable representation of the input DataFrame or Series.
-
-    Notes:
-    ------
-    - Multi-level column names are flattened (e.g., ('value', 'mean') → 'value_mean').
-    - Index values are retained and displayed as part of the table.
-    - Uses the `prettytable` package for tabular formatting.
-
-    Example:
-    --------
-    # Example with DataFrame
-    df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
-    display_as_pretty_table(df)
-
-    # Example with Series
-    series = pd.Series([10, 20, 30], name='values')
-    display_as_pretty_table(series)
+    Prints the PrettyTable representation of the input DataFrame or Series.
     """
 
     # Validate input type
@@ -1706,7 +1665,5 @@ def plot_evaluation_curves(y_true, y_scores, title_pr='Precision-Recall Curve', 
 
     plt.tight_layout()
     plt.show()
-
-
 
 
