@@ -194,7 +194,7 @@ def show_dateinfo():
         mmyyyy_current, yyyymm_current = get_yyyymm(date_current)
         mmyyyy_lag, yyyymm_lag = get_yyyymm(date_lag)
 
-        dd = pd.DataFrame(columns = ['Item', 'Value'])
+        dd = pd.DataFrame(columns = ['Value'])
 
         # Print formatted results
         dd.loc["date current"] = date_current
@@ -207,7 +207,7 @@ def show_dateinfo():
         dd.loc["yyyymm_current"] = yyyymm_current
         dd.loc["mmyyyy_lag"] = mmyyyy_lag
         dd.loc["yyyymm_lag"] = yyyymm_lag
-
+        dd.style.set_properties(**{'text-align': 'left'})
         table(dd)
 
     except NameError as e:
@@ -1039,10 +1039,13 @@ def calculate_residual_drift(model,x_new,y_new,x_old,y_old):
 
 def chi_selection(data, target_name):
     """
-    Perform Chi-Square test of independence to evaluate the relationship between features and the target variable.
+    Perform Chi-Square test of independence to evaluate the 
+    relationship between features and the target variable.
     
-    The function computes the Chi-Square statistic and the p-value for each feature to help with feature selection in 
-    machine learning models. A lower p-value indicates a stronger relationship between the feature and the target.
+    The function computes the Chi-Square statistic and the p-value 
+    for each feature to help with feature selection in 
+    machine learning models. A lower p-value indicates a 
+    stronger relationship between the feature and the target.
     
     This test is used to identify if there is an association between categorical features and the target, 
     and it helps in determining the most relevant features for further analysis.
@@ -1058,7 +1061,8 @@ def chi_selection(data, target_name):
     Returns:
     --------
     pandas DataFrame
-        A DataFrame containing the Chi-Square statistics and p-values for each feature, sorted by the Chi-Square statistic.
+        A DataFrame containing the Chi-Square statistics and p-values for each feature, 
+        sorted by the Chi-Square statistic.
         The DataFrame has the following columns:
         - `p_value`: The p-value of the Chi-Square test.
         - `chi_square_stats`: The Chi-Square statistic.
@@ -1067,7 +1071,8 @@ def chi_selection(data, target_name):
     ------
     - The function handles both categorical and continuous features.
     - Continuous features are binned into categories before applying the Chi-Square test.
-    - The Chi-Square statistic measures how much the observed values differ from the expected values under the null hypothesis.
+    - The Chi-Square statistic measures how much the observed values differ 
+    - from the expected values under the null hypothesis.
     - Smaller p-values (usually below 0.05) suggest that the feature is **not independent** of the target, 
     indicating a potential for being important in predicting the target.
     
