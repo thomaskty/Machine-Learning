@@ -8,18 +8,23 @@ pd.set_option('display.float_format',lambda x : '%.3f' % x)
 
 import numpy as np
 # np.set_printoptions(suppress=True,precision=5,floatmode='fixed')
+
 import sklearn
 import sklearn as sk
 from sklearn import preprocessing
 from sklearn.metrics import confusion_matrix,roc_curve,auc
+from sklearn.metrics import precision_score,recall_score,f1_score
 from sklearn.metrics import precision_recall_curve, roc_curve, auc
 import matplotlib.pyplot as plt 
+import seaborn as sns
 from functools import * 
-from scipy import stats
+
+import os
 import dateutil
 import datetime
 import itertools
 import pytz
+
 from scipy import stats
 from prettytable import PrettyTable
 
@@ -62,19 +67,19 @@ def get_current_time_ist():
 def last_day(date):
     """
     Get the last day of the month for a given date.
+
     Parameters:
     -----------
-    date : datetime : The input date.
+    date : datetime
+        The input date.
+
     Returns:
     --------
     datetime
         The last day of the month.
     """
-    # Ensures crossing into the next month
-    next_month = date.replace(day=28) + datetime.timedelta(days=4)
-
-     # Subtract days to move back to the last day
-    return next_month - datetime.timedelta(days=next_month.day)
+    next_month = date.replace(day=28) + datetime.timedelta(days=4)  # Ensures crossing into the next month
+    return next_month - datetime.timedelta(days=next_month.day)  # Subtract days to move back to the last day
 
 
 def get_yyyymm(dt):
@@ -1661,58 +1666,4 @@ def plot_evaluation_curves(y_true, y_scores, title_pr='Precision-Recall Curve', 
     plt.tight_layout()
     plt.show()
 
-def calculate_kendall_tau_trend(data):
-    x = np.arange(len(data))
-    tau,_ = stats.kendalltau(x,data)
-    return tau
 
-def average_monthly_growth(data):
-    mom_growth = np.diff(data)/data[1:]*100
-    return np.mean(mom_growth)
-
-def cumulative_growth(data):
-    return ((data[0]-data[-1])/data[-1])*100
-
-def calculate_coefficient_variation(data):
-    mean = np.mean(data)
-    std = np.std(data)
-    cv = (std/mean)*100 if mean !=0 else 0
-    return cv
-
-def recentavg_vs_pastavg_ratio(data):
-    # index 0 should be the oldest data
-    # [m6,m5,m4,m3,m2,m1]
-    # past data = [m6,m5,,m4]
-    # latest data = [m3,m2,m1]
-    middle_point = len(data)//2
-    if np.mean(data[middle_point:])!=0:
-        return np.mean(data[:middle_point])/np.mean(data[middle_point:])
-    else:
-        return 0
-
-def recentsum_vs_pastsum_ratio(data):
-    # index 0 should be the oldest data
-    # [m6,m5,m4,m3,m2,m1]
-    # past data = [m6,m5,,m4]
-    # latest data = [m3,m2,m1]
-    middle_point = len(data)//2
-    if np.sum(data[middle_point:])!=0:
-        return np.sum(data[:middle_point])/np.sum(data[middle_point:])
-    else:
-        return 0
-
-def peak_count(data):
-    mean_value = np.mean(data)
-    peak_count_ = np.sum(data>mean_value)
-    return peak_count_
-
-def trough_count(data):
-    mean_value = np.mean(data)
-    trough_count_ = np.sum(data<mean_value)
-    return trough_count_
-
-def decay_weighted_average(data,decay_rate=0.1):
-    n = len(data)
-    weights = np.exp(-decay_rate*np.arange(n))
-    weighted_avg = np.sum(weights*data)/np.sum(weights)
-    return weighted_avg
