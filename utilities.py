@@ -916,3 +916,15 @@ def chi_selection(data, target_name):
     })
     out = out.sort_values(by='chi_square_stats', ascending=True).set_index('feature')
     return out
+
+
+
+def get_data_sample(data):
+    df = data.copy()
+    np.random.seed(42)
+    subset_fraction  = 0.05 
+    subset_size = int(df.shape[0]*subset_fraction)
+    subset_indices = np.random.choice(df.shape[0],subset_size,replace = False)
+    data_subset = df[subset_indices]
+    return data_subset,subset_indices
+    
