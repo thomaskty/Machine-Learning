@@ -272,7 +272,6 @@ def deciles(x,y,model):
         output['proba'],q = 10,
         duplicates='drop',retbins=True
     )
-
     return output 
 
 def aggregate(data):
