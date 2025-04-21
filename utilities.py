@@ -607,21 +607,16 @@ def mutual_information_value(x, y, verbose=False):
         for c in range(cols):
             value = output.iloc[r, c]
             marg_a, marg_b = output.iloc[r, cols], output.iloc[rows, c]
-            
             if verbose:
                 print(value, [marg_a, marg_b], [r, c])
-            
             if value != 0:
                 mi_value = compute_mi(value, [marg_a, marg_b])
             else:
                 mi_value = 0
-            
             # Handle infinity values (e.g., log(0)) by setting them to zero
             if mi_value == np.inf:
                 mi_value = 0
-            
             total_mi.append(mi_value)
-    
     if verbose:
         print(total_mi)
     return np.sum(total_mi)
